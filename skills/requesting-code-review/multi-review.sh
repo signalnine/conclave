@@ -142,6 +142,12 @@ word_overlap_percent() {
     local desc1="$1"
     local desc2="$2"
 
+    # Handle empty strings
+    if [ -z "$desc1" ] || [ -z "$desc2" ]; then
+        echo "0"
+        return
+    fi
+
     # Convert to lowercase and extract words
     words1=$(echo "$desc1" | tr '[:upper:]' '[:lower:]' | grep -oE '\w+' | sort -u)
     words2=$(echo "$desc2" | tr '[:upper:]' '[:lower:]' | grep -oE '\w+' | sort -u)
