@@ -91,20 +91,37 @@ Be specific and include file names and line numbers when possible."
 }
 
 # Launch Codex MCP review
-# NOTE: This is a placeholder - actual implementation requires MCP tool
+# NOTE: Codex MCP is only available from within Claude Code sessions.
+#       This script is invoked BY Claude Code, so actual MCP calls
+#       must be made by the assistant, not by this bash script.
+#       This function returns a placeholder instructing the assistant
+#       to make the MCP call.
 launch_codex_review() {
     local context="$1"
 
-    # For now, return mock review
+    # Return instruction for Claude Code to execute
     cat <<EOF
-# Codex Code Review
+CODEX_MCP_INSTRUCTION
+
+The assistant should use the mcp__codex-cli__codex tool with this prompt:
+
+"You are a senior code reviewer. Review the following code change and provide structured feedback.
+
+$context
+
+Please provide your review in the following format:
+
+## Critical Issues
+- [list critical issues here, or write 'None']
 
 ## Important Issues
-- No input validation
-- Edge case not handled
+- [list important issues here, or write 'None']
 
 ## Suggestions
-- Improve naming
+- [list suggestions here, or write 'None']
+
+Be specific and include file names and line numbers when possible."
+
 EOF
 }
 
