@@ -101,6 +101,87 @@ launch_codex_review() {
 EOF
 }
 
+# === Issue Parsing ===
+
+# Parse issues from a review text
+# Output format: SEVERITY|DESCRIPTION (one per line)
+parse_issues() {
+    local review_text="$1"
+    local current_severity=""
+
+    while IFS= read -r line; do
+        # Detect severity headers
+        if echo "$line" | grep -q "^## Critical Issues"; then
+            current_severity="Critical"
+        elif echo "$line" | grep -q "^## Important Issues"; then
+            current_severity="Important"
+        elif echo "$line" | grep -q "^## Suggestions"; then
+            current_severity="Suggestion"
+        # Extract issue lines (start with -)
+        elif echo "$line" | grep -q "^-"; then
+            issue_desc=$(echo "$line" | sed 's/^- *//')
+            if [ -n "$current_severity" ] && [ -n "$issue_desc" ]; then
+                echo "$current_severity|$issue_desc"
+            fi
+        fi
+    done <<< "$review_text"
+}
+
+# Extract filename from issue description (if present)
+extract_filename() {
+    local description="$1"
+    # Look for patterns like "in file.py" or "file.py:" or "file.py line"
+    if echo "$description" | grep -oE '\b[a-zA-Z0-9_/-]+\.(sh|py|js|ts|md|go|rs|java)\b' | head -1; then
+        return 0
+    fi
+    echo ""
+}
+
+# Calculate word overlap between two descriptions
+word_overlap_percent() {
+    local desc1="$1"
+    local desc2="$2"
+
+    # Convert to lowercase and extract words
+    words1=$(echo "$desc1" | tr '[:upper:]' '[:lower:]' | grep -oE '\w+' | sort -u)
+    words2=$(echo "$desc2" | tr '[:upper:]' '[:lower:]' | grep -oE '\w+' | sort -u)
+
+    # Count common words
+    common=$(comm -12 <(echo "$words1") <(echo "$words2") | wc -l | tr -d ' ')
+    total=$(echo "$words1" | wc -l | tr -d ' ')
+
+    if [ "$total" -eq 0 ]; then
+        echo "0"
+        return
+    fi
+
+    # Calculate percentage
+    echo "scale=0; ($common * 100) / $total" | bc
+}
+
+# Check if two issues are similar (same file + 60% word overlap)
+issues_similar() {
+    local issue1="$1"
+    local issue2="$2"
+
+    local file1=$(extract_filename "$issue1")
+    local file2=$(extract_filename "$issue2")
+
+    # If both mention a file, they must be the same file
+    if [ -n "$file1" ] && [ -n "$file2" ] && [ "$file1" != "$file2" ]; then
+        return 1
+    fi
+
+    # Check word overlap
+    local overlap=$(word_overlap_percent "$issue1" "$issue2")
+
+    if [ "$overlap" -ge 60 ]; then
+        return 0
+    else
+        return 1
+    fi
+}
+
 # === Context Preparation ===
 
 # Validate git SHAs exist
