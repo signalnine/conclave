@@ -4,6 +4,9 @@ set -euo pipefail
 # Multi-reviewer code review script
 # Coordinates parallel reviews from Claude, Gemini, and Codex
 
+# Configuration
+SIMILARITY_THRESHOLD="${SIMILARITY_THRESHOLD:-60}"  # Default 60% word overlap for issue similarity
+
 # Check Bash version (requires 4.0+ for associative arrays)
 if [ "${BASH_VERSINFO[0]}" -lt 4 ]; then
     echo "Error: Bash 4.0+ required (found $BASH_VERSION)" >&2
@@ -173,16 +176,23 @@ parse_issues() {
 }
 
 # Extract filename from issue description (if present)
+# Normalizes paths by removing leading ./ and converting to relative paths
 extract_filename() {
     local description="$1"
     # Look for patterns like "in file.py" or "file.py:" or "file.py line"
-    if echo "$description" | grep -oE '\b[a-zA-Z0-9_/-]+\.(sh|py|js|ts|md|go|rs|java)\b' | head -1; then
+    local filename=$(echo "$description" | grep -oE '\b[a-zA-Z0-9_/-]+\.(sh|py|js|ts|md|go|rs|java)\b' | head -1)
+
+    if [ -n "$filename" ]; then
+        # Normalize path: remove leading ./
+        filename=$(echo "$filename" | sed 's|^\./||')
+        echo "$filename"
         return 0
     fi
     echo ""
 }
 
 # Calculate word overlap between two descriptions
+# Uses configurable threshold and filters common stop words
 word_overlap_percent() {
     local desc1="$1"
     local desc2="$2"
@@ -193,9 +203,24 @@ word_overlap_percent() {
         return
     fi
 
+    # Common stop words to filter (reduces false matches)
+    local stop_words="the a an and or but in on at to for of with is are was were be been being have has had do does did will would should could may might must can"
+
     # Convert to lowercase and extract words
-    words1=$(echo "$desc1" | tr '[:upper:]' '[:lower:]' | grep -oE '\w+' | sort -u)
-    words2=$(echo "$desc2" | tr '[:upper:]' '[:lower:]' | grep -oE '\w+' | sort -u)
+    local words1=$(echo "$desc1" | tr '[:upper:]' '[:lower:]' | grep -oE '\w+' | sort -u)
+    local words2=$(echo "$desc2" | tr '[:upper:]' '[:lower:]' | grep -oE '\w+' | sort -u)
+
+    # Filter stop words
+    for stop in $stop_words; do
+        words1=$(echo "$words1" | grep -v "^${stop}$" || true)
+        words2=$(echo "$words2" | grep -v "^${stop}$" || true)
+    done
+
+    # Handle case where all words were stop words
+    if [ -z "$words1" ] || [ -z "$words2" ]; then
+        echo "0"
+        return
+    fi
 
     # Count common words
     common=$(comm -12 <(echo "$words1") <(echo "$words2") | wc -l | tr -d ' ')
@@ -210,7 +235,7 @@ word_overlap_percent() {
     echo "scale=0; ($common * 100) / $total" | bc
 }
 
-# Check if two issues are similar (same file + 60% word overlap)
+# Check if two issues are similar (same file + configurable% word overlap)
 issues_similar() {
     local issue1="$1"
     local issue2="$2"
@@ -223,10 +248,10 @@ issues_similar() {
         return 1
     fi
 
-    # Check word overlap
+    # Check word overlap against configurable threshold
     local overlap=$(word_overlap_percent "$issue1" "$issue2")
 
-    if [ "$overlap" -ge 60 ]; then
+    if [ "$overlap" -ge "$SIMILARITY_THRESHOLD" ]; then
         return 0
     else
         return 1
@@ -461,6 +486,18 @@ fi
 echo "  - Gemini (optional)..." >&2
 GEMINI_REVIEW=$(launch_gemini_review "$FULL_CONTEXT" 2>&1)
 GEMINI_EXIT=$?
+GEMINI_ERROR_TYPE=""
+
+# Determine specific error type for better reporting
+if [ $GEMINI_EXIT -ne 0 ]; then
+    if echo "$GEMINI_REVIEW" | grep -q "GEMINI_NOT_AVAILABLE"; then
+        GEMINI_ERROR_TYPE="not installed"
+    elif echo "$GEMINI_REVIEW" | grep -q "GEMINI_TIMEOUT"; then
+        GEMINI_ERROR_TYPE="timeout after 120s"
+    else
+        GEMINI_ERROR_TYPE="error (exit $GEMINI_EXIT)"
+    fi
+fi
 
 # Launch Codex review (optional, synchronous)
 echo "  - Codex (optional)..." >&2
@@ -474,6 +511,8 @@ CODEX_STATUS="✗ (not available)"
 
 if [ $GEMINI_EXIT -eq 0 ] && ! echo "$GEMINI_REVIEW" | grep -q "GEMINI_NOT_AVAILABLE"; then
     GEMINI_STATUS="✓"
+elif [ -n "$GEMINI_ERROR_TYPE" ]; then
+    GEMINI_STATUS="✗ ($GEMINI_ERROR_TYPE)"
 fi
 
 if [ $CODEX_EXIT -eq 0 ]; then

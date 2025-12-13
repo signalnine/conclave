@@ -52,7 +52,6 @@ HEAD_SHA=$(git rev-parse HEAD)
 
 - bash 4.0+
 - git
-- jq (for JSON parsing)
 - bc (for calculations)
 - gemini CLI (optional, for Gemini reviews)
 - Claude Code (optional, for Claude/Codex reviews)
