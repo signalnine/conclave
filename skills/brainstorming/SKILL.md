@@ -39,6 +39,36 @@ Start by understanding the current project context, then ask questions one at a 
 - Use elements-of-style:writing-clearly-and-concisely skill if available
 - Commit the design document to git
 
+**Multi-Agent Design Validation (Optional):**
+
+After the user validates the complete design, offer multi-agent review:
+
+"Would you like multi-agent validation of this design? Claude, Gemini, and Codex will review for architectural flaws, over-engineering, and missing requirements."
+
+If yes:
+1. Prepare validation prompt:
+   ```
+   Review this software design for issues. Find architectural flaws, missing
+   requirements, over-engineering, maintainability concerns, testing gaps, or
+   any other problems. Rate each issue as:
+   STRONG (critical flaw), MODERATE (should address), WEAK (minor concern)
+   ```
+
+2. Invoke consensus:
+   ```bash
+   DESIGN_TEXT=$(cat "docs/plans/YYYY-MM-DD-<topic>-design.md")
+
+   ../multi-agent-consensus/multi-consensus.sh --mode=general-prompt \
+     --prompt="Review this software design..." \
+     --context="$DESIGN_TEXT"
+   ```
+
+3. Present results:
+   "Multi-agent validation found X High Priority issues, Y Medium Priority, Z Consider.
+   Would you like to address the High Priority issues before proceeding?"
+
+4. User decides: revise, proceed, or ask questions
+
 **Implementation (if continuing):**
 - Ask: "Ready to set up for implementation?"
 - Use superpowers:using-git-worktrees to create isolated workspace
