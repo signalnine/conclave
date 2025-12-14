@@ -486,70 +486,111 @@ aggregate_consensus() {
     rm -f "$all_issues_file" "$consensus_all" "$consensus_majority" "$consensus_single"
 }
 
-# === Context Preparation ===
+# === Context Preparation Functions ===
 
-# Validate git SHAs exist
-if ! git rev-parse "$BASE_SHA" >/dev/null 2>&1; then
-    echo "Error: BASE_SHA '$BASE_SHA' not found in repository" >&2
-    exit 1
-fi
+# Prepare context for code review mode
+prepare_code_review_context() {
+    local base_sha="$1"
+    local head_sha="$2"
+    local plan_file="$3"
+    local description="$4"
 
-if ! git rev-parse "$HEAD_SHA" >/dev/null 2>&1; then
-    echo "Error: HEAD_SHA '$HEAD_SHA' not found in repository" >&2
-    exit 1
-fi
-
-# Validate SHAs are different
-if [ "$(git rev-parse "$BASE_SHA")" = "$(git rev-parse "$HEAD_SHA")" ]; then
-    echo "Warning: BASE_SHA and HEAD_SHA point to the same commit - no changes to review" >&2
-fi
-
-# Get git diff
-GIT_DIFF=$(git diff "$BASE_SHA..$HEAD_SHA")
-
-# Get modified files
-MODIFIED_FILES=$(git diff --name-only "$BASE_SHA..$HEAD_SHA")
-if [ -z "$MODIFIED_FILES" ]; then
-    MODIFIED_FILES_COUNT=0
-else
-    MODIFIED_FILES_COUNT=$(echo "$MODIFIED_FILES" | wc -l | tr -d ' ')
-fi
-
-# Read plan file if provided
-PLAN_CONTENT=""
-if [ "$PLAN_FILE" != "-" ]; then
-    if [ -f "$PLAN_FILE" ]; then
-        PLAN_CONTENT=$(cat "$PLAN_FILE")
-    else
-        echo "Warning: Plan file '$PLAN_FILE' not found" >&2
+    # Validate git SHAs exist
+    if ! git rev-parse "$base_sha" >/dev/null 2>&1; then
+        echo "Error: BASE_SHA '$base_sha' not found in repository" >&2
+        exit 1
     fi
-fi
 
-# Build full context
-FULL_CONTEXT="# Code Review Context
+    if ! git rev-parse "$head_sha" >/dev/null 2>&1; then
+        echo "Error: HEAD_SHA '$head_sha' not found in repository" >&2
+        exit 1
+    fi
 
-**Description:** $DESCRIPTION
-**Commits:** $BASE_SHA..$HEAD_SHA
-**Modified files:** $MODIFIED_FILES_COUNT
+    # Check if commits are the same
+    if [ "$base_sha" = "$head_sha" ]; then
+        echo "Error: BASE_SHA and HEAD_SHA are the same ($base_sha)" >&2
+        echo "Nothing to review" >&2
+        exit 1
+    fi
 
-## Modified Files
+    # Get list of modified files
+    MODIFIED_FILES=$(git diff --name-only "$base_sha" "$head_sha" 2>/dev/null || echo "")
+
+    if [ -z "$MODIFIED_FILES" ]; then
+        MODIFIED_FILES_COUNT=0
+    else
+        MODIFIED_FILES_COUNT=$(echo "$MODIFIED_FILES" | wc -l | tr -d ' ')
+    fi
+
+    # Get full diff
+    FULL_DIFF=$(git diff "$base_sha" "$head_sha" 2>/dev/null || echo "")
+
+    if [ -z "$FULL_DIFF" ]; then
+        echo "Warning: No changes between $base_sha and $head_sha" >&2
+    fi
+
+    # Load plan content if provided
+    PLAN_CONTENT=""
+    if [ "$plan_file" != "-" ] && [ -f "$plan_file" ]; then
+        PLAN_CONTENT=$(cat "$plan_file")
+    fi
+
+    # Build full context
+    FULL_CONTEXT="# Code Review Context
+
+**Description:** $description
+
+**Commits:** $base_sha..$head_sha
+
+**Files Changed:** $MODIFIED_FILES_COUNT
+
+**Modified Files:**
 $MODIFIED_FILES
 
-## Git Diff
+**Plan/Requirements:**
+${PLAN_CONTENT:-None provided}
+
+**Full Diff:**
 \`\`\`diff
-$GIT_DIFF
+$FULL_DIFF
 \`\`\`
-
-## Plan/Requirements
-$PLAN_CONTENT
 "
+}
 
-if [ "$DRY_RUN" = true ]; then
-    echo "Modified files: $MODIFIED_FILES_COUNT"
+# Prepare context for general prompt mode
+prepare_general_prompt_context() {
+    local prompt="$1"
+    local context="$2"
+
+    # Build full context
+    if [ -n "$context" ]; then
+        FULL_CONTEXT="# Context
+
+$context
+
+# Prompt
+
+$prompt"
+    else
+        FULL_CONTEXT="$prompt"
+    fi
+}
+
+# Prepare context based on mode
+if [ "$MODE" = "code-review" ]; then
+    prepare_code_review_context "$BASE_SHA" "$HEAD_SHA" "$PLAN_FILE" "$DESCRIPTION"
+elif [ "$MODE" = "general-prompt" ]; then
+    prepare_general_prompt_context "$PROMPT" "$CONTEXT"
+fi
+
+# Exit early if --dry-run (for testing)
+if [ "${DRY_RUN:-false}" = "true" ]; then
+    echo "DRY RUN MODE"
+    echo "$FULL_CONTEXT"
     exit 0
 fi
 
-echo "Context prepared: $MODIFIED_FILES_COUNT file(s) modified"
+echo "Context prepared for $MODE mode"
 
 # === Parallel Review Execution ===
 
