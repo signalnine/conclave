@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -e
 
-SCRIPT="$(dirname "$0")/multi-consensus.sh"
+SCRIPT="$(cd "$(dirname "$0")" && pwd)/multi-consensus.sh"
 
 echo "Testing multi-consensus.sh..."
 
