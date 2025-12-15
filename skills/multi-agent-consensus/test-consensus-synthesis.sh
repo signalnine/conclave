@@ -296,7 +296,7 @@ else
     exit 1
 fi
 
-# Test 19: Timeout enforcement (30 seconds)
+# Test 19: Timeout enforcement (60 seconds default)
 echo -n "Test 19: Timeout enforcement for slow agents... "
 # Test that timeout message appears and script doesn't hang indefinitely
 # We'll check that:
@@ -310,17 +310,17 @@ cp "$SCRIPT" "$TEMP_SCRIPT"
 
 # Modify run_claude to sleep for longer than timeout
 # Use a loop instead of sleep to make it interruptible
-sed -i 's/run_claude() {/run_claude() {\n    local i=0; while [ $i -lt 40 ]; do sleep 1; i=$((i+1)); done/' "$TEMP_SCRIPT"
+sed -i 's/run_claude() {/run_claude() {\n    local i=0; while [ $i -lt 70 ]; do sleep 1; i=$((i+1)); done/' "$TEMP_SCRIPT"
 
 # Run with a wrapper timeout to prevent hanging forever
 start=$(date +%s)
-output=$(timeout 45s bash "$TEMP_SCRIPT" --mode=general-prompt --prompt="test" 2>&1 || true)
+output=$(timeout 75s bash "$TEMP_SCRIPT" --mode=general-prompt --prompt="test" 2>&1 || true)
 end=$(date +%s)
 duration=$((end - start))
 
 rm -f "$TEMP_SCRIPT"
 
-# Check that timeout was enforced (should be ~30s, not 40s)
+# Check that timeout was enforced (should be ~60s, not 70s)
 # We verify the timeout message appeared
 if echo "$output" | grep -q "Timeout reached"; then
     echo "PASS (timeout message found, duration=${duration}s)"
@@ -612,6 +612,77 @@ echo ""
 echo "All Stage 2 tests passed!"
 
 #############################################
+# Configuration Tests
+#############################################
+
+echo ""
+echo "Running configuration tests..."
+
+# Test 31: Configurable timeout via CLI flag
+echo -n "Test 31: Configurable timeout via CLI flag... "
+# Create a script that sleeps for 35s (less than custom 45s timeout, more than default 60s)
+TIMEOUT_SCRIPT=$(mktemp)
+cp "$SCRIPT" "$TIMEOUT_SCRIPT"
+sed -i 's/run_claude() {/run_claude() {\n    sleep 35;/' "$TIMEOUT_SCRIPT"
+
+# Run with custom timeout - should NOT timeout
+output=$(timeout 50s bash "$TIMEOUT_SCRIPT" --mode=general-prompt --prompt="test" --stage1-timeout=45 2>&1 || true)
+
+rm -f "$TIMEOUT_SCRIPT"
+
+if ! echo "$output" | grep -q "Timeout reached"; then
+    echo "PASS (custom timeout respected)"
+else
+    echo "FAIL"
+    echo "  Expected: No timeout with 45s custom timeout"
+    echo "  Got: Timeout message appeared"
+    exit 1
+fi
+
+# Test 32: Configurable timeout via environment variable
+echo -n "Test 32: Configurable timeout via environment variable... "
+TIMEOUT_SCRIPT=$(mktemp)
+cp "$SCRIPT" "$TIMEOUT_SCRIPT"
+sed -i 's/run_claude() {/run_claude() {\n    sleep 35;/' "$TIMEOUT_SCRIPT"
+
+# Run with environment variable - should NOT timeout
+output=$(CONSENSUS_STAGE1_TIMEOUT=45 timeout 50s bash "$TIMEOUT_SCRIPT" --mode=general-prompt --prompt="test" 2>&1 || true)
+
+rm -f "$TIMEOUT_SCRIPT"
+
+if ! echo "$output" | grep -q "Timeout reached"; then
+    echo "PASS (environment variable respected)"
+else
+    echo "FAIL"
+    echo "  Expected: No timeout with 45s env var timeout"
+    echo "  Got: Timeout message appeared"
+    exit 1
+fi
+
+# Test 33: CLI flag overrides environment variable
+echo -n "Test 33: CLI flag overrides environment variable... "
+TIMEOUT_SCRIPT=$(mktemp)
+cp "$SCRIPT" "$TIMEOUT_SCRIPT"
+sed -i 's/run_claude() {/run_claude() {\n    sleep 25;/' "$TIMEOUT_SCRIPT"
+
+# Set env var to 20s but CLI flag to 30s - should NOT timeout
+output=$(CONSENSUS_STAGE1_TIMEOUT=20 timeout 35s bash "$TIMEOUT_SCRIPT" --mode=general-prompt --prompt="test" --stage1-timeout=30 2>&1 || true)
+
+rm -f "$TIMEOUT_SCRIPT"
+
+if ! echo "$output" | grep -q "Timeout reached"; then
+    echo "PASS (CLI flag overrides env var)"
+else
+    echo "FAIL"
+    echo "  Expected: No timeout (CLI flag 30s > sleep 25s)"
+    echo "  Got: Timeout message appeared"
+    exit 1
+fi
+
+echo ""
+echo "All configuration tests passed!"
+
+#############################################
 # Summary
 #############################################
 
@@ -624,6 +695,7 @@ echo "Test coverage:"
 echo "  - Argument parsing: 11 tests"
 echo "  - Stage 1 (parallel execution): 11 tests"
 echo "  - Stage 2 (chairman synthesis): 8 tests"
+echo "  - Configuration: 3 tests"
 echo ""
-echo "Total: 30 tests"
+echo "Total: 33 tests"
 echo ""

@@ -31,8 +31,14 @@ GENERAL PROMPT MODE OPTIONS:
   --context=TEXT          Optional: Additional context for analysis
 
 COMMON OPTIONS:
+  --stage1-timeout=SEC    Stage 1 timeout in seconds (default: 60)
+  --stage2-timeout=SEC    Stage 2 timeout in seconds (default: 60)
   --dry-run               Parse arguments and validate, but don't execute
   --help                  Show this help message
+
+ENVIRONMENT VARIABLES:
+  CONSENSUS_STAGE1_TIMEOUT    Override default Stage 1 timeout (default: 60)
+  CONSENSUS_STAGE2_TIMEOUT    Override default Stage 2 timeout (default: 60)
 
 EXAMPLES:
   # Code review
@@ -68,6 +74,11 @@ PROMPT=""
 CONTEXT=""
 DRY_RUN=false
 
+# Timeout configuration (in seconds)
+# Can be overridden via environment variables or CLI flags
+STAGE1_TIMEOUT="${CONSENSUS_STAGE1_TIMEOUT:-60}"
+STAGE2_TIMEOUT="${CONSENSUS_STAGE2_TIMEOUT:-60}"
+
 # Parse arguments
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -97,6 +108,14 @@ while [[ $# -gt 0 ]]; do
             ;;
         --context=*)
             CONTEXT="${1#*=}"
+            shift
+            ;;
+        --stage1-timeout=*)
+            STAGE1_TIMEOUT="${1#*=}"
+            shift
+            ;;
+        --stage2-timeout=*)
+            STAGE2_TIMEOUT="${1#*=}"
             shift
             ;;
         --dry-run)
@@ -414,11 +433,12 @@ execute_stage1() {
     ( run_codex "$prompt" "$codex_output" ) &
     codex_pid=$!
 
-    # Wait for all agents with 30-second timeout
-    echo "  Waiting for agents (30s timeout)..." >&2
+    # Wait for all agents with timeout
+    echo "  Waiting for agents (${STAGE1_TIMEOUT}s timeout)..." >&2
 
-    local timeout_duration=30
+    local timeout_duration=$STAGE1_TIMEOUT
     local start_time=$(date +%s)
+    local stage1_start_ns=$(date +%s.%N)
     local claude_exit=1
     local gemini_exit=1
     local codex_exit=1
@@ -539,6 +559,10 @@ execute_stage1() {
     STAGE1_GEMINI_STATUS="$gemini_status"
     STAGE1_CODEX_STATUS="$codex_status"
     STAGE1_AGENTS_SUCCEEDED=$agents_succeeded
+
+    local stage1_end_ns=$(date +%s.%N)
+    local stage1_duration=$(echo "$stage1_end_ns - $stage1_start_ns" | bc)
+    echo "  Stage 1 duration: ${stage1_duration}s" >&2
 
     return 0
 }
@@ -736,9 +760,11 @@ execute_stage2() {
     local chairman_name=""
     local chairman_response=""
 
+    local stage2_start_ns=$(date +%s.%N)
+
     for agent in "${chairman_agents[@]}"; do
-        # Run chairman agent with 30s timeout
-        local timeout_duration=30
+        # Run chairman agent with timeout
+        local timeout_duration=$STAGE2_TIMEOUT
         local start_time=$(date +%s)
         local agent_pid=""
 
@@ -809,6 +835,10 @@ execute_stage2() {
     # Export results
     STAGE2_CHAIRMAN_NAME="$chairman_name"
     STAGE2_CHAIRMAN_RESPONSE="$chairman_response"
+
+    local stage2_end_ns=$(date +%s.%N)
+    local stage2_duration=$(echo "$stage2_end_ns - $stage2_start_ns" | bc)
+    echo "  Stage 2 duration: ${stage2_duration}s" >&2
 
     return 0
 }

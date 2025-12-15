@@ -166,7 +166,7 @@ Three-tier consensus report:
 **Stage 1: Parallel Independent Analysis**
 - Claude, Gemini, and Codex analyze the prompt independently
 - Each provides structured feedback (Critical/Important/Suggestions)
-- 30-second timeout per agent
+- 60-second timeout per agent (configurable)
 - Results collected from all successful agents
 
 **Stage 2: Chairman Synthesis**
@@ -174,6 +174,7 @@ Three-tier consensus report:
 - Groups issues by agreement level
 - Highlights disagreements explicitly
 - Produces final three-tier report
+- 60-second timeout (configurable)
 
 ## Dependencies
 
@@ -182,6 +183,31 @@ Three-tier consensus report:
 - bc (for calculations)
 - gemini CLI (optional, for Gemini reviews)
 - Claude Code (optional, for Claude/Codex reviews)
+
+## Configuration
+
+### Timeout Settings
+
+Default timeouts are 60 seconds per stage, covering P95-P99 API latency scenarios.
+
+**Via environment variables:**
+```bash
+export CONSENSUS_STAGE1_TIMEOUT=90  # Stage 1 timeout in seconds
+export CONSENSUS_STAGE2_TIMEOUT=90  # Stage 2 timeout in seconds
+```
+
+**Via CLI flags:**
+```bash
+consensus-synthesis.sh --mode=general-prompt \
+  --prompt="Your question" \
+  --stage1-timeout=90 \
+  --stage2-timeout=90
+```
+
+**When to adjust:**
+- **Increase (90-120s):** Very large code diffs, complex architectural questions, slow networks
+- **Decrease (30-45s):** Simple prompts, fast iteration, when speed is critical
+- **Default (60s):** Recommended for most use cases
 
 ## Integration Examples
 
