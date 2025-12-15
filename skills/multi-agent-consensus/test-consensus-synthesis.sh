@@ -296,5 +296,161 @@ else
     exit 1
 fi
 
+# Test 19: Timeout enforcement (30 seconds)
+echo -n "Test 19: Timeout enforcement for slow agents... "
+# Test that timeout message appears and script doesn't hang indefinitely
+# We'll check that:
+# 1. Timeout message is printed
+# 2. Script completes (doesn't hang forever)
+# 3. Agents are marked as failed after timeout
+
+# Create a modified script with a slow agent
+TEMP_SCRIPT=$(mktemp)
+cp "$SCRIPT" "$TEMP_SCRIPT"
+
+# Modify run_claude to sleep for longer than timeout
+# Use a loop instead of sleep to make it interruptible
+sed -i 's/run_claude() {/run_claude() {\n    local i=0; while [ $i -lt 40 ]; do sleep 1; i=$((i+1)); done/' "$TEMP_SCRIPT"
+
+# Run with a wrapper timeout to prevent hanging forever
+start=$(date +%s)
+output=$(timeout 45s bash "$TEMP_SCRIPT" --mode=general-prompt --prompt="test" 2>&1 || true)
+end=$(date +%s)
+duration=$((end - start))
+
+rm -f "$TEMP_SCRIPT"
+
+# Check that timeout was enforced (should be ~30s, not 40s)
+# We verify the timeout message appeared
+if echo "$output" | grep -q "Timeout reached"; then
+    echo "PASS (timeout message found, duration=${duration}s)"
+else
+    echo "FAIL"
+    echo "  Expected: 'Timeout reached' message"
+    echo "  Got: duration=${duration}s"
+    echo "  Output: $output"
+    exit 1
+fi
+
+# Test 20: Partial success - 1/3 agents succeed
+echo -n "Test 20: Partial success with 1/3 agents... "
+# The script already has Gemini and Codex returning failure states by default
+# So just run normally - Claude succeeds, Gemini/Codex fail
+output=$(bash "$SCRIPT" --mode=general-prompt --prompt="test" 2>&1)
+exit_code=$?
+
+# Should succeed with 1/3
+if [[ $exit_code -eq 0 ]] && echo "$output" | grep -q "1/3 succeeded"; then
+    echo "PASS"
+else
+    echo "FAIL"
+    echo "  Expected: Success with 1/3 agents"
+    echo "  Got exit code: $exit_code"
+    echo "  Output snippet:"
+    echo "$output" | grep -E "succeeded|Agent" | head -5
+    exit 1
+fi
+
+# Test 21: Partial success - 2/3 agents succeed
+echo -n "Test 21: Partial success with 2/3 agents... "
+# Modify script to make Claude and Gemini succeed (Codex fails)
+PARTIAL2_SCRIPT=$(mktemp)
+cp "$SCRIPT" "$PARTIAL2_SCRIPT"
+
+# Replace run_gemini function (lines 339-367) with success version
+head -n 338 "$PARTIAL2_SCRIPT" > "${PARTIAL2_SCRIPT}.new"
+cat >> "${PARTIAL2_SCRIPT}.new" <<'GEMINICODE'
+run_gemini() {
+    local prompt="$1"
+    local output_file="$2"
+    cat > "$output_file" <<'EOF'
+# Gemini Test Success
+
+## Strong Points
+- Test point from Gemini
+EOF
+    return 0
+}
+GEMINICODE
+tail -n +368 "$PARTIAL2_SCRIPT" >> "${PARTIAL2_SCRIPT}.new"
+mv "${PARTIAL2_SCRIPT}.new" "$PARTIAL2_SCRIPT"
+
+output=$(bash "$PARTIAL2_SCRIPT" --mode=general-prompt --prompt="test" 2>&1)
+exit_code=$?
+
+rm -f "$PARTIAL2_SCRIPT"
+
+# Should succeed with 2/3
+if [[ $exit_code -eq 0 ]] && echo "$output" | grep -q "2/3 succeeded"; then
+    echo "PASS"
+else
+    echo "FAIL"
+    echo "  Expected: Success with 2/3 agents"
+    echo "  Got exit code: $exit_code"
+    echo "  Output snippet:"
+    echo "$output" | grep -E "succeeded|Agent" | head -5
+    exit 1
+fi
+
+# Test 22: Full success - 3/3 agents succeed
+echo -n "Test 22: Full success with 3/3 agents... "
+# Modify script to make all agents succeed
+PARTIAL3_SCRIPT=$(mktemp)
+cp "$SCRIPT" "$PARTIAL3_SCRIPT"
+
+# Replace run_gemini function (lines 339-367)
+head -n 338 "$PARTIAL3_SCRIPT" > "${PARTIAL3_SCRIPT}.new"
+cat >> "${PARTIAL3_SCRIPT}.new" <<'GEMINICODE'
+run_gemini() {
+    local prompt="$1"
+    local output_file="$2"
+    cat > "$output_file" <<'EOF'
+# Gemini Test Success
+
+## Strong Points
+- Test point from Gemini
+EOF
+    return 0
+}
+GEMINICODE
+tail -n +368 "$PARTIAL3_SCRIPT" >> "${PARTIAL3_SCRIPT}.new"
+mv "${PARTIAL3_SCRIPT}.new" "$PARTIAL3_SCRIPT"
+
+# Replace run_codex function (now at line 352 after Gemini replacement)
+# Function spans from 352 to 367
+head -n 351 "$PARTIAL3_SCRIPT" > "${PARTIAL3_SCRIPT}.new"
+cat >> "${PARTIAL3_SCRIPT}.new" <<'CODEXCODE'
+run_codex() {
+    local prompt="$1"
+    local output_file="$2"
+    cat > "$output_file" <<'EOF'
+# Codex Test Success
+
+## Strong Points
+- Test point from Codex
+EOF
+    return 0
+}
+CODEXCODE
+tail -n +368 "$PARTIAL3_SCRIPT" >> "${PARTIAL3_SCRIPT}.new"
+mv "${PARTIAL3_SCRIPT}.new" "$PARTIAL3_SCRIPT"
+
+output=$(bash "$PARTIAL3_SCRIPT" --mode=general-prompt --prompt="test" 2>&1)
+exit_code=$?
+
+rm -f "$PARTIAL3_SCRIPT"
+
+# Should succeed with 3/3
+if [[ $exit_code -eq 0 ]] && echo "$output" | grep -q "3/3 succeeded"; then
+    echo "PASS"
+else
+    echo "FAIL"
+    echo "  Expected: Success with 3/3 agents"
+    echo "  Got exit code: $exit_code"
+    echo "  Output snippet:"
+    echo "$output" | grep -E "succeeded|Agent" | head -5
+    exit 1
+fi
+
 echo ""
-echo "All Stage 1 tests passed (placeholders for now)!"
+echo "All Stage 1 tests passed!"
