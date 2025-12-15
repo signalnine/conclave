@@ -16,6 +16,110 @@ Different AI models have different strengths and weaknesses. Single agents may m
 - Three-tier output (High/Medium/Consider priority)
 - Graceful degradation (works with 1, 2, or 3 reviewers)
 
+## Setup
+
+### Required (Always Needed)
+
+**1. Bash 4.0+**
+```bash
+# Check version
+bash --version
+
+# macOS: upgrade if needed
+brew install bash
+```
+
+**2. bc (calculator)**
+```bash
+# Check if installed
+which bc
+
+# Install if needed
+# macOS:
+brew install bc
+
+# Debian/Ubuntu:
+sudo apt-get install bc
+```
+
+**3. git**
+```bash
+# Check if installed
+git --version
+```
+
+**4. Claude Code**
+
+You're already using it! Claude is the only *required* reviewer. Gemini and Codex are optional.
+
+### Optional Reviewers
+
+**5. Gemini CLI (Optional but Recommended)**
+
+Enables Gemini reviews for more diverse perspectives:
+
+```bash
+# Install Google's Gemini CLI
+npm install -g @google/generative-ai-cli
+# or
+pip install google-generativeai-cli
+
+# Verify installation
+gemini --version
+
+# Set up API key (get from https://ai.google.dev/)
+export GEMINI_API_KEY="your-api-key-here"
+
+# Add to your shell profile (~/.bashrc, ~/.zshrc, etc.)
+echo 'export GEMINI_API_KEY="your-api-key-here"' >> ~/.bashrc
+```
+
+**Without Gemini:** Framework still works with Claude + Codex (or just Claude alone).
+
+**6. Codex MCP (Optional but Recommended)**
+
+Enables Codex reviews via Claude Code's MCP integration:
+
+```bash
+# Check if installed
+claude-code mcp list | grep codex
+
+# If not installed, add codex-cli MCP server
+# (Follow Claude Code MCP setup instructions)
+```
+
+**Without Codex:** Framework still works with Claude + Gemini (or just Claude alone).
+
+## Verification
+
+Test your setup:
+
+```bash
+# Test basic functionality (uses Claude only)
+./skills/multi-agent-consensus/test-multi-consensus.sh
+
+# Test with actual reviewers
+echo "test" > /tmp/test.txt
+git init /tmp/test-repo
+cd /tmp/test-repo
+git add test.txt
+git commit -m "initial"
+BASE=$(git rev-parse HEAD)
+echo "modified" > test.txt
+git add test.txt
+git commit -m "change"
+HEAD=$(git rev-parse HEAD)
+
+# This will show which reviewers are available
+../path/to/skills/multi-agent-consensus/multi-consensus.sh --mode=code-review \
+  --base-sha="$BASE" --head-sha="$HEAD" --description="test"
+
+# Look for:
+# Claude: ✓ (always works)
+# Gemini: ✓ or ✗ (not installed)
+# Codex: ✓ or ✗ (not available)
+```
+
 ## Usage
 
 ### Code Review Mode
