@@ -196,11 +196,11 @@ exit_code=$?
 cd - > /dev/null
 rm -rf "$TEST_REPO"
 
-if [[ $exit_code -eq 0 ]] && echo "$output" | grep -q "Stage 1 complete"; then
+if [[ $exit_code -eq 0 ]] && echo "$output" | grep -q "CONSENSUS COMPLETE"; then
     echo "PASS"
 else
     echo "FAIL"
-    echo "  Expected: Stage 1 to complete successfully"
+    echo "  Expected: Consensus to complete successfully"
     echo "  Got exit code: $exit_code"
     echo "  Output: $output"
     exit 1
@@ -256,11 +256,11 @@ echo -n "Test 15: General prompt construction... "
 output=$($SCRIPT --mode=general-prompt --prompt="What is the best approach?" 2>&1)
 exit_code=$?
 
-if [[ $exit_code -eq 0 ]] && echo "$output" | grep -q "Stage 1 complete"; then
+if [[ $exit_code -eq 0 ]] && echo "$output" | grep -q "CONSENSUS COMPLETE"; then
     echo "PASS"
 else
     echo "FAIL"
-    echo "  Expected: Stage 1 to complete for general prompt"
+    echo "  Expected: Consensus to complete for general prompt"
     echo "  Got exit code: $exit_code"
     exit 1
 fi
@@ -270,11 +270,11 @@ echo -n "Test 16: General prompt with context... "
 output=$($SCRIPT --mode=general-prompt --prompt="What could go wrong?" --context="We are building a distributed system" 2>&1)
 exit_code=$?
 
-if [[ $exit_code -eq 0 ]] && echo "$output" | grep -q "Stage 1 complete"; then
+if [[ $exit_code -eq 0 ]] && echo "$output" | grep -q "CONSENSUS COMPLETE"; then
     echo "PASS"
 else
     echo "FAIL"
-    echo "  Expected: Stage 1 to complete with context"
+    echo "  Expected: Consensus to complete with context"
     echo "  Got exit code: $exit_code"
     exit 1
 fi
@@ -454,3 +454,176 @@ fi
 
 echo ""
 echo "All Stage 1 tests passed!"
+
+#############################################
+# Stage 2: Chairman Synthesis Tests
+#############################################
+
+echo ""
+echo "Testing Stage 2: Chairman Synthesis..."
+
+# Test 23: Chairman synthesis success (Claude as chairman)
+echo -n "Test 23: Chairman synthesis with Claude... "
+output=$($SCRIPT --mode=general-prompt --prompt="test question" 2>&1)
+exit_code=$?
+
+if [[ $exit_code -eq 0 ]] && echo "$output" | grep -q "CONSENSUS COMPLETE"; then
+    echo "PASS"
+else
+    echo "FAIL"
+    echo "  Expected: Chairman synthesis to complete"
+    echo "  Got exit code: $exit_code"
+    exit 1
+fi
+
+# Test 24: Output file creation
+echo -n "Test 24: Output file created in /tmp... "
+output=$($SCRIPT --mode=general-prompt --prompt="test" 2>&1)
+
+# Extract file path from output
+output_file=$(echo "$output" | grep -o '/tmp/consensus-[^[:space:]]*')
+
+if [[ -n "$output_file" ]] && [[ -f "$output_file" ]]; then
+    echo "PASS"
+    rm -f "$output_file"
+else
+    echo "FAIL"
+    echo "  Expected: Output file in /tmp/consensus-XXXXXX.md"
+    echo "  Got: $output_file"
+    exit 1
+fi
+
+# Test 25: Output file contains all sections
+echo -n "Test 25: Output file contains all required sections... "
+output=$($SCRIPT --mode=general-prompt --prompt="test question" 2>&1)
+output_file=$(echo "$output" | grep -o '/tmp/consensus-[^[:space:]]*')
+
+if [[ -f "$output_file" ]]; then
+    file_content=$(cat "$output_file")
+
+    missing_sections=()
+    echo "$file_content" | grep -q "# Multi-Agent Consensus Analysis" || missing_sections+=("title")
+    echo "$file_content" | grep -q "## Original Question" || missing_sections+=("question")
+    echo "$file_content" | grep -q "## Stage 1: Independent Analyses" || missing_sections+=("stage1")
+    echo "$file_content" | grep -q "## Stage 2: Chairman Consensus" || missing_sections+=("stage2")
+
+    rm -f "$output_file"
+
+    if [[ ${#missing_sections[@]} -eq 0 ]]; then
+        echo "PASS"
+    else
+        echo "FAIL"
+        echo "  Missing sections: ${missing_sections[*]}"
+        exit 1
+    fi
+else
+    echo "FAIL"
+    echo "  Output file not created"
+    exit 1
+fi
+
+# Test 26: Code review mode chairman synthesis
+echo -n "Test 26: Chairman synthesis for code review mode... "
+TEST_REPO=$(mktemp -d)
+cd "$TEST_REPO"
+git init -q
+echo "initial" > test.txt
+git add test.txt
+git commit -q -m "initial commit"
+INIT_SHA=$(git rev-parse HEAD)
+echo "modified" > test.txt
+git add test.txt
+git commit -q -m "test change"
+HEAD_SHA=$(git rev-parse HEAD)
+
+output=$($SCRIPT --mode=code-review --base-sha="$INIT_SHA" --head-sha="$HEAD_SHA" --description="test change" 2>&1)
+exit_code=$?
+
+cd - > /dev/null
+rm -rf "$TEST_REPO"
+
+if [[ $exit_code -eq 0 ]] && echo "$output" | grep -q "CONSENSUS COMPLETE"; then
+    echo "PASS"
+else
+    echo "FAIL"
+    echo "  Expected: Code review chairman synthesis to complete"
+    echo "  Got exit code: $exit_code"
+    exit 1
+fi
+
+# Test 27: Chairman fallback (conceptual verification)
+echo -n "Test 27: Chairman fallback logic exists... "
+# Verify the fallback chain is implemented in the script
+if grep -q "chairman_agents=.*Claude.*Gemini.*Codex" "$SCRIPT" && \
+   grep -q "for agent in.*chairman_agents" "$SCRIPT"; then
+    echo "PASS"
+else
+    echo "FAIL"
+    echo "  Expected: Chairman fallback chain in code"
+    exit 1
+fi
+
+# Test 28: All chairmen fail error handling exists
+echo -n "Test 28: All chairmen fail error handling exists... "
+# Verify error handling code exists
+if grep -q "All chairman agents failed" "$SCRIPT"; then
+    echo "PASS"
+else
+    echo "FAIL"
+    echo "  Expected: Error message for all chairmen failing"
+    exit 1
+fi
+
+# Test 29: Chairman timeout logic exists
+echo -n "Test 29: Chairman timeout logic exists... "
+# Verify timeout handling code exists for chairman
+if grep -q "timeout_duration=30" "$SCRIPT" && \
+   grep -q "elapsed.*timeout_duration" "$SCRIPT"; then
+    echo "PASS"
+else
+    echo "FAIL"
+    echo "  Expected: Chairman timeout logic in code"
+    exit 1
+fi
+
+# Test 30: Output file includes chairman name
+echo -n "Test 30: Output file includes chairman name... "
+output=$($SCRIPT --mode=general-prompt --prompt="test" 2>&1)
+output_file=$(echo "$output" | grep -o '/tmp/consensus-[^[:space:]]*')
+
+if [[ -f "$output_file" ]]; then
+    if grep -q "^\*\*Chairman:\*\* Claude" "$output_file"; then
+        echo "PASS"
+    else
+        echo "FAIL"
+        echo "  Expected: 'Chairman: Claude' in output file"
+        echo "  Content preview:"
+        head -10 "$output_file"
+        exit 1
+    fi
+    rm -f "$output_file"
+else
+    echo "FAIL"
+    echo "  Output file not created"
+    exit 1
+fi
+
+echo ""
+echo "All Stage 2 tests passed!"
+
+#############################################
+# Summary
+#############################################
+
+echo ""
+echo "=========================================="
+echo "ALL TESTS PASSED!"
+echo "=========================================="
+echo ""
+echo "Test coverage:"
+echo "  - Argument parsing: 11 tests"
+echo "  - Stage 1 (parallel execution): 11 tests"
+echo "  - Stage 2 (chairman synthesis): 8 tests"
+echo ""
+echo "Total: 30 tests"
+echo ""
