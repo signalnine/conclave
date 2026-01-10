@@ -18,28 +18,35 @@ Different AI models have different strengths and weaknesses. Single agents may m
 
 ## Setup
 
-### Required (Always Needed)
+### Required Dependencies
 
-**1. Bash 4.0+**
-```bash
-# Check version
-bash --version
+**1. curl & jq**
 
-# macOS: upgrade if needed
-brew install bash
-```
+Required for API calls:
 
-**2. bc (calculator)**
 ```bash
 # Check if installed
-which bc
+curl --version
+jq --version
 
-# Install if needed
-# macOS:
-brew install bc
+# Install if needed (macOS):
+brew install curl jq
+
+# Install if needed (Debian/Ubuntu):
+sudo apt-get install curl jq
+```
+
+**2. Bash 4.0+ & bc**
+```bash
+# Check versions
+bash --version
+bc --version
+
+# macOS: upgrade if needed
+brew install bash bc
 
 # Debian/Ubuntu:
-sudo apt-get install bc
+sudo apt-get install bash bc
 ```
 
 **3. git**
@@ -48,47 +55,68 @@ sudo apt-get install bc
 git --version
 ```
 
-**4. Claude Code**
+### Agent API Keys
 
-You're already using it! Claude is the only *required* reviewer. Gemini and Codex are optional.
+At least one agent is required. More agents provide better consensus.
 
-### Optional Reviewers
-
-**5. Gemini CLI (Optional but Recommended)**
-
-Enables Gemini reviews for more diverse perspectives:
+**Claude Agent (Recommended Primary)**
 
 ```bash
-# Install Google's Gemini CLI
-npm install -g @google/generative-ai-cli
-# or
-pip install google-generativeai-cli
+# Get API key from: https://console.anthropic.com/
 
-# Verify installation
-gemini --version
-
-# Set up API key (get from https://ai.google.dev/)
-export GEMINI_API_KEY="your-api-key-here"
+# Set environment variable
+export ANTHROPIC_API_KEY="sk-ant-..."
 
 # Add to your shell profile (~/.bashrc, ~/.zshrc, etc.)
-echo 'export GEMINI_API_KEY="your-api-key-here"' >> ~/.bashrc
+echo 'export ANTHROPIC_API_KEY="sk-ant-..."' >> ~/.bashrc
+
+# Optional: Configure model (default: claude-opus-4-5-20251101)
+export ANTHROPIC_MODEL="claude-opus-4-5-20251101"
+export ANTHROPIC_MAX_TOKENS="4096"
 ```
 
-**Without Gemini:** Framework still works with Claude + Codex (or just Claude alone).
-
-**6. Codex MCP (Optional but Recommended)**
-
-Enables Codex reviews via Claude Code's MCP integration:
+**Gemini Agent (Optional but Recommended)**
 
 ```bash
-# Check if installed
-claude-code mcp list | grep codex
+# Get API key from: https://ai.google.dev/
 
-# If not installed, add codex-cli MCP server
-# (Follow Claude Code MCP setup instructions)
+# Set environment variable
+export GEMINI_API_KEY="..."
+
+# Add to your shell profile
+echo 'export GEMINI_API_KEY="..."' >> ~/.bashrc
+
+# Optional: Configure model (default: gemini-3-pro-preview)
+export GEMINI_MODEL="gemini-3-pro-preview"
 ```
 
-**Without Codex:** Framework still works with Claude + Gemini (or just Claude alone).
+**OpenAI Agent (Optional)**
+
+Provides the OpenAI/GPT perspective:
+
+```bash
+# Get API key from: https://platform.openai.com/
+
+# Set environment variable
+export OPENAI_API_KEY="sk-..."
+
+# Add to your shell profile
+echo 'export OPENAI_API_KEY="sk-..."' >> ~/.bashrc
+
+# Optional: Configure model (default: gpt-5.1-codex-max)
+export OPENAI_MODEL="gpt-5.1-codex-max"
+export OPENAI_MAX_TOKENS="4096"
+```
+
+### Minimum Requirements
+
+**For basic functionality:**
+- At least one API key (ANTHROPIC_API_KEY, GEMINI_API_KEY, or OPENAI_API_KEY)
+- curl, jq, bash, bc, git
+
+**For full consensus (recommended):**
+- All three API keys: ANTHROPIC_API_KEY, GEMINI_API_KEY, and OPENAI_API_KEY
+- This provides three independent perspectives from Claude, Gemini, and OpenAI
 
 ## Verification
 
@@ -181,8 +209,11 @@ Three-tier consensus report:
 - Bash 4.0+
 - git
 - bc (for calculations)
-- gemini CLI (optional, for Gemini reviews)
-- Claude Code (optional, for Claude/Codex reviews)
+- curl (for API calls)
+- jq (for JSON parsing)
+- ANTHROPIC_API_KEY (for Claude agent)
+- GEMINI_API_KEY (for Gemini agent)
+- OPENAI_API_KEY (for OpenAI agent)
 
 ## Configuration
 

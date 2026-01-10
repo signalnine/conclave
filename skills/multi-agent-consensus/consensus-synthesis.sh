@@ -5,6 +5,27 @@ set -euo pipefail
 # Two-stage consensus synthesis for multi-agent analysis
 # Stage 1: Parallel independent analysis from Claude, Gemini, Codex
 # Stage 2: Chairman synthesizes consensus from all responses
+#
+# SETUP REQUIREMENTS:
+# - curl: HTTP client for API calls
+# - jq: JSON processor for parsing API responses
+# - ANTHROPIC_API_KEY: Environment variable with Anthropic API key
+# - GEMINI_API_KEY: Environment variable with Google Gemini API key
+# - OPENAI_API_KEY: Environment variable with OpenAI API key (for Codex)
+
+#############################################
+# Environment Setup
+#############################################
+
+# Source ~/.env if it exists and API keys are missing
+if [[ -f ~/.env ]]; then
+    if [[ -z "${ANTHROPIC_API_KEY:-}" ]] || [[ -z "${GEMINI_API_KEY:-}" ]] || [[ -z "${GOOGLE_API_KEY:-}" ]] || [[ -z "${OPENAI_API_KEY:-}" ]]; then
+        set +u  # Temporarily allow unset variables
+        # shellcheck disable=SC1090
+        source ~/.env 2>/dev/null || true
+        set -u  # Re-enable unset variable checking
+    fi
+fi
 
 #############################################
 # Usage and Help
@@ -37,8 +58,19 @@ COMMON OPTIONS:
   --help                  Show this help message
 
 ENVIRONMENT VARIABLES:
-  CONSENSUS_STAGE1_TIMEOUT    Override default Stage 1 timeout (default: 60)
-  CONSENSUS_STAGE2_TIMEOUT    Override default Stage 2 timeout (default: 60)
+  Required for agent access (at least one):
+    ANTHROPIC_API_KEY         API key for Claude agent
+    GEMINI_API_KEY            API key for Gemini agent
+    OPENAI_API_KEY            API key for OpenAI Codex agent
+
+  Optional configuration:
+    ANTHROPIC_MODEL           Claude model (default: claude-opus-4-5-20251101)
+    ANTHROPIC_MAX_TOKENS      Max tokens for Claude (default: 4096)
+    GEMINI_MODEL              Gemini model (default: gemini-3-pro-preview)
+    OPENAI_MODEL              OpenAI model (default: gpt-5.1-codex-max)
+    OPENAI_MAX_TOKENS         Max tokens for OpenAI (default: 4096)
+    CONSENSUS_STAGE1_TIMEOUT  Stage 1 timeout in seconds (default: 60)
+    CONSENSUS_STAGE2_TIMEOUT  Stage 2 timeout in seconds (default: 60)
 
 EXAMPLES:
   # Code review
@@ -334,23 +366,85 @@ run_claude() {
     local prompt="$1"
     local output_file="$2"
 
-    # For now, Claude is called via a placeholder
-    # In a real implementation, this would use Claude API or CLI
-    # Since this script is meant to be called BY Claude Code,
-    # we'll create a mock response for testing
-    cat > "$output_file" <<'EOF'
-# Claude Analysis
+    # Check if API key is available
+    if [[ -z "${ANTHROPIC_API_KEY:-}" ]]; then
+        echo "CLAUDE_API_KEY_MISSING" > "$output_file"
+        return 1
+    fi
 
-## Critical Issues
-- None
+    # Check if curl is available
+    if ! command -v curl &> /dev/null; then
+        echo "CLAUDE_CURL_NOT_AVAILABLE" > "$output_file"
+        return 1
+    fi
 
-## Important Issues
-- None
+    # Check if jq is available
+    if ! command -v jq &> /dev/null; then
+        echo "CLAUDE_JQ_NOT_AVAILABLE" > "$output_file"
+        return 1
+    fi
 
-## Suggestions
-- Consider adding more test coverage
+    # Prepare the API request
+    local model="${ANTHROPIC_MODEL:-claude-opus-4-5-20251101}"
+    local max_tokens="${ANTHROPIC_MAX_TOKENS:-4096}"
+
+    # Escape the prompt for JSON
+    local escaped_prompt=$(echo "$prompt" | jq -Rs .)
+
+    # Build JSON payload
+    local json_payload=$(cat <<EOF
+{
+  "model": "$model",
+  "max_tokens": $max_tokens,
+  "messages": [
+    {
+      "role": "user",
+      "content": $escaped_prompt
+    }
+  ]
+}
 EOF
+)
 
+    # Make API call with timeout
+    local response
+    response=$(curl -s --max-time 50 \
+        -X POST "https://api.anthropic.com/v1/messages" \
+        -H "x-api-key: $ANTHROPIC_API_KEY" \
+        -H "anthropic-version: 2023-06-01" \
+        -H "content-type: application/json" \
+        -d "$json_payload" 2>&1)
+
+    local curl_exit=$?
+
+    # Check for curl errors
+    if [[ $curl_exit -ne 0 ]]; then
+        echo "CLAUDE_CURL_ERROR: Exit code $curl_exit" > "$output_file"
+        return 1
+    fi
+
+    # Extract content from response
+    local content
+    content=$(echo "$response" | jq -r '.content[0].text // empty' 2>/dev/null)
+
+    # Check if we got valid content
+    if [[ -z "$content" ]]; then
+        # Check for API error - try multiple error paths
+        local error_msg
+        error_msg=$(echo "$response" | jq -r '.error.message // .error // "Unknown error"' 2>/dev/null)
+
+        # If still empty or just shows the response itself, capture more context
+        if [[ "$error_msg" == "Unknown error" ]] || [[ -z "$error_msg" ]]; then
+            # Try to extract any useful info from the response
+            error_msg=$(echo "$response" | jq -r 'if .error then .error else . end' 2>/dev/null | head -c 200)
+        fi
+
+        echo "CLAUDE_API_ERROR: $error_msg" > "$output_file"
+        return 1
+    fi
+
+    # Write successful response
+    echo "$content" > "$output_file"
     return 0
 }
 
@@ -359,48 +453,198 @@ run_gemini() {
     local prompt="$1"
     local output_file="$2"
 
-    # For testing: Use mock response instead of real Gemini
-    # TODO: Re-enable real Gemini calls in production
-    cat > "$output_file" <<'EOF'
-GEMINI_NOT_AVAILABLE
-EOF
-    return 1
+    # Check if API key is available (try both GEMINI_API_KEY and GOOGLE_API_KEY)
+    local api_key="${GEMINI_API_KEY:-${GOOGLE_API_KEY:-}}"
+    if [[ -z "$api_key" ]]; then
+        echo "GEMINI_API_KEY_MISSING" > "$output_file"
+        return 1
+    fi
 
-    # Real implementation (commented out for testing):
-    # Check if gemini CLI is available
-    # if ! command -v gemini &> /dev/null; then
-    #     echo "GEMINI_NOT_AVAILABLE" > "$output_file"
-    #     return 1
-    # fi
-    #
-    # # Call Gemini CLI with timeout
-    # timeout 30s gemini "$prompt" > "$output_file" 2>&1
-    # local exit_code=$?
-    #
-    # if [[ $exit_code -eq 124 ]]; then
-    #     echo "GEMINI_TIMEOUT" > "$output_file"
-    #     return 1
-    # fi
-    #
-    # return $exit_code
+    # Check if curl is available
+    if ! command -v curl &> /dev/null; then
+        echo "GEMINI_CURL_NOT_AVAILABLE" > "$output_file"
+        return 1
+    fi
+
+    # Check if jq is available
+    if ! command -v jq &> /dev/null; then
+        echo "GEMINI_JQ_NOT_AVAILABLE" > "$output_file"
+        return 1
+    fi
+
+    # Prepare the API request
+    local model="${GEMINI_MODEL:-gemini-3-pro-preview}"
+
+    # Escape the prompt for JSON
+    local escaped_prompt=$(echo "$prompt" | jq -Rs .)
+
+    # Build JSON payload
+    local json_payload=$(cat <<EOF
+{
+  "contents": [{
+    "parts": [{
+      "text": $escaped_prompt
+    }]
+  }]
+}
+EOF
+)
+
+    # Make API call with timeout
+    local response
+    response=$(curl -s --max-time 50 \
+        -X POST "https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${api_key}" \
+        -H "Content-Type: application/json" \
+        -d "$json_payload" 2>&1)
+
+    local curl_exit=$?
+
+    # Check for curl errors
+    if [[ $curl_exit -ne 0 ]]; then
+        echo "GEMINI_CURL_ERROR: Exit code $curl_exit" > "$output_file"
+        return 1
+    fi
+
+    # Extract content from response
+    local content
+    content=$(echo "$response" | jq -r '.candidates[0].content.parts[0].text // empty' 2>/dev/null)
+
+    # Check if we got valid content
+    if [[ -z "$content" ]]; then
+        # Check for API error
+        local error_msg
+        error_msg=$(echo "$response" | jq -r '.error.message // "Unknown error"' 2>/dev/null)
+        echo "GEMINI_API_ERROR: $error_msg" > "$output_file"
+        return 1
+    fi
+
+    # Write successful response
+    echo "$content" > "$output_file"
+    return 0
 }
 
-# Run Codex agent (via MCP)
+# Run Codex agent (via OpenAI API)
 run_codex() {
     local prompt="$1"
     local output_file="$2"
 
-    # Codex is only available via MCP from within Claude Code
-    # This script will be called BY Claude Code, which should handle MCP calls
-    # For now, we'll create a placeholder instruction
-    cat > "$output_file" <<EOF
-CODEX_MCP_REQUIRED
+    # Check if API key is available
+    if [[ -z "${OPENAI_API_KEY:-}" ]]; then
+        echo "CODEX_API_KEY_MISSING" > "$output_file"
+        return 1
+    fi
 
-Note: Codex requires MCP call from Claude Code assistant.
-The assistant should invoke: mcp__codex-cli__codex with prompt.
+    # Check if curl is available
+    if ! command -v curl &> /dev/null; then
+        echo "CODEX_CURL_NOT_AVAILABLE" > "$output_file"
+        return 1
+    fi
+
+    # Check if jq is available
+    if ! command -v jq &> /dev/null; then
+        echo "CODEX_JQ_NOT_AVAILABLE" > "$output_file"
+        return 1
+    fi
+
+    # Prepare the API request
+    # Note: gpt-5.1-codex-max uses the Responses API endpoint (for agentic coding tasks)
+    local model="${OPENAI_MODEL:-gpt-5.1-codex-max}"
+    local max_tokens="${OPENAI_MAX_TOKENS:-4096}"
+
+    # Escape the prompt for JSON
+    local escaped_prompt=$(echo "$prompt" | jq -Rs .)
+
+    # Determine which endpoint to use
+    local endpoint
+    local json_payload
+    local is_responses_api=false
+
+    if [[ "$model" =~ ^gpt-5.*-codex ]]; then
+        # Use Responses API endpoint for Codex models
+        is_responses_api=true
+        endpoint="https://api.openai.com/v1/responses"
+        json_payload=$(cat <<EOF
+{
+  "model": "$model",
+  "input": [
+    {
+      "role": "user",
+      "content": $escaped_prompt
+    }
+  ]
+}
 EOF
+)
+    elif [[ "$model" =~ ^(gpt-4|gpt-3.5-turbo|o1|o3) ]]; then
+        # Use chat completions endpoint
+        endpoint="https://api.openai.com/v1/chat/completions"
+        json_payload=$(cat <<EOF
+{
+  "model": "$model",
+  "max_tokens": $max_tokens,
+  "messages": [
+    {
+      "role": "user",
+      "content": $escaped_prompt
+    }
+  ]
+}
+EOF
+)
+    else
+        # Use completions endpoint as fallback
+        endpoint="https://api.openai.com/v1/completions"
+        json_payload=$(cat <<EOF
+{
+  "model": "$model",
+  "max_tokens": $max_tokens,
+  "prompt": $escaped_prompt
+}
+EOF
+)
+    fi
 
-    return 1  # Mark as unavailable for now
+    # Make API call with timeout
+    local response
+    response=$(curl -s --max-time 50 \
+        -X POST "$endpoint" \
+        -H "Authorization: Bearer $OPENAI_API_KEY" \
+        -H "Content-Type: application/json" \
+        -d "$json_payload" 2>&1)
+
+    local curl_exit=$?
+
+    # Check for curl errors
+    if [[ $curl_exit -ne 0 ]]; then
+        echo "CODEX_CURL_ERROR: Exit code $curl_exit" > "$output_file"
+        return 1
+    fi
+
+    # Extract content from response (different paths for responses/chat/completion APIs)
+    local content
+    if [[ "$is_responses_api" == "true" ]]; then
+        # Responses API format: output[].content[].text
+        content=$(echo "$response" | jq -r '.output[] | select(.type == "message") | .content[0].text // empty' 2>/dev/null)
+    elif [[ "$model" =~ ^(gpt-4|gpt-3.5-turbo|o1|o3) ]]; then
+        # Chat completions format
+        content=$(echo "$response" | jq -r '.choices[0].message.content // empty' 2>/dev/null)
+    else
+        # Completions format
+        content=$(echo "$response" | jq -r '.choices[0].text // empty' 2>/dev/null)
+    fi
+
+    # Check if we got valid content
+    if [[ -z "$content" ]]; then
+        # Check for API error
+        local error_msg
+        error_msg=$(echo "$response" | jq -r '.error.message // "Unknown error"' 2>/dev/null)
+        echo "CODEX_API_ERROR: $error_msg" > "$output_file"
+        return 1
+    fi
+
+    # Write successful response
+    echo "$content" > "$output_file"
+    return 0
 }
 
 # Execute Stage 1: Parallel agent execution
@@ -506,35 +750,48 @@ execute_stage1() {
     local gemini_status="failed"
     local codex_status="failed"
 
-    if [[ $claude_exit -eq 0 ]] && [[ -n "$claude_response" ]]; then
+    # Check Claude status (reject error markers)
+    if [[ $claude_exit -eq 0 ]] && [[ -n "$claude_response" ]] && ! echo "$claude_response" | grep -qE "^CLAUDE_(API_KEY_MISSING|CURL_ERROR|JQ_NOT_AVAILABLE|CURL_NOT_AVAILABLE|API_ERROR)"; then
         claude_status="success"
         agents_succeeded=$((agents_succeeded + 1))
         echo "  Claude: SUCCESS" >&2
     else
-        echo "  Claude: FAILED" >&2
+        if echo "$claude_response" | grep -q "CLAUDE_API_KEY_MISSING"; then
+            echo "  Claude: API KEY MISSING" >&2
+        elif echo "$claude_response" | grep -q "CLAUDE_API_ERROR"; then
+            echo "  Claude: API ERROR" >&2
+        else
+            echo "  Claude: FAILED" >&2
+        fi
     fi
 
-    if [[ $gemini_exit -eq 0 ]] && [[ -n "$gemini_response" ]] && ! echo "$gemini_response" | grep -q "GEMINI_NOT_AVAILABLE\|GEMINI_TIMEOUT"; then
+    # Check Gemini status (reject error markers)
+    if [[ $gemini_exit -eq 0 ]] && [[ -n "$gemini_response" ]] && ! echo "$gemini_response" | grep -qE "^GEMINI_(API_KEY_MISSING|CURL_ERROR|JQ_NOT_AVAILABLE|CURL_NOT_AVAILABLE|API_ERROR)"; then
         gemini_status="success"
         agents_succeeded=$((agents_succeeded + 1))
         echo "  Gemini: SUCCESS" >&2
     else
-        if echo "$gemini_response" | grep -q "GEMINI_NOT_AVAILABLE"; then
-            echo "  Gemini: NOT AVAILABLE" >&2
-        elif echo "$gemini_response" | grep -q "GEMINI_TIMEOUT"; then
-            echo "  Gemini: TIMEOUT" >&2
+        if echo "$gemini_response" | grep -q "GEMINI_API_KEY_MISSING"; then
+            echo "  Gemini: API KEY MISSING" >&2
+        elif echo "$gemini_response" | grep -q "GEMINI_API_ERROR"; then
+            echo "  Gemini: API ERROR" >&2
         else
             echo "  Gemini: FAILED" >&2
         fi
     fi
 
-    if [[ $codex_exit -eq 0 ]] && [[ -n "$codex_response" ]] && ! echo "$codex_response" | grep -q "CODEX_MCP_REQUIRED"; then
+    # Check Codex status (reject error markers)
+    if [[ $codex_exit -eq 0 ]] && [[ -n "$codex_response" ]] && ! echo "$codex_response" | grep -qE "^CODEX_(API_KEY_MISSING|CURL_ERROR|JQ_NOT_AVAILABLE|CURL_NOT_AVAILABLE|API_ERROR|MCP_REQUIRED)"; then
         codex_status="success"
         agents_succeeded=$((agents_succeeded + 1))
         echo "  Codex: SUCCESS" >&2
     else
-        if echo "$codex_response" | grep -q "CODEX_MCP_REQUIRED"; then
-            echo "  Codex: MCP REQUIRED (not available in bash)" >&2
+        if echo "$codex_response" | grep -q "CODEX_API_KEY_MISSING"; then
+            echo "  Codex: API KEY MISSING" >&2
+        elif echo "$codex_response" | grep -q "CODEX_API_ERROR"; then
+            echo "  Codex: API ERROR" >&2
+        elif echo "$codex_response" | grep -q "CODEX_MCP_REQUIRED"; then
+            echo "  Codex: NOT AVAILABLE (needs OpenAI API key)" >&2
         else
             echo "  Codex: FAILED" >&2
         fi

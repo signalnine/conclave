@@ -1,5 +1,75 @@
 # Superpowers Release Notes
 
+## v4.2.0 (2026-01-10) - Multi-Agent Consensus API Integration
+
+### Major Improvements
+
+**Fully Functional Multi-Agent Consensus with Real API Integration**
+
+The multi-agent-consensus framework now works with real API calls to all three AI providers:
+
+- **Claude Agent:** Direct Anthropic API integration
+  - Uses `claude-opus-4-5-20251101` (Opus 4.5) by default
+  - Configurable via `ANTHROPIC_API_KEY` and `ANTHROPIC_MODEL`
+  - Full error handling and validation
+
+- **Gemini Agent:** Direct Google AI API integration
+  - Uses `gemini-3-pro-preview` by default
+  - Configurable via `GEMINI_API_KEY` and `GEMINI_MODEL`
+  - Supports both `GEMINI_API_KEY` and `GOOGLE_API_KEY` for compatibility
+
+- **Codex Agent:** OpenAI Responses API integration
+  - Uses `gpt-5.1-codex-max` via Responses API endpoint (`/v1/responses`)
+  - Proper support for agentic coding models
+  - Configurable via `OPENAI_API_KEY` and `OPENAI_MODEL`
+  - Automatic endpoint detection (Responses API vs Chat Completions vs Completions)
+
+**Enhanced Error Detection and Reporting**
+
+- Improved validation to properly detect API errors vs successful responses
+- Clear error messages for missing API keys, API errors, and invalid models
+- Better debugging information in consensus output files
+
+**Automatic Environment Configuration**
+
+- Auto-sources `~/.env` file if API keys are missing
+- Seamless integration with existing environment variable workflows
+- No manual configuration needed if keys are in `~/.env`
+
+**Updated Model Defaults**
+
+- Claude: `claude-opus-4-5-20251101` (latest Opus 4.5)
+- Gemini: `gemini-3-pro-preview` (Gemini 3 Pro Preview)
+- OpenAI: `gpt-5.1-codex-max` (Codex Max via Responses API)
+
+### Technical Changes
+
+**API Integration (`consensus-synthesis.sh`):**
+- Implemented `run_claude()` with Anthropic Messages API
+- Implemented `run_gemini()` with Google Generative AI API
+- Implemented `run_codex()` with OpenAI Responses API for agentic models
+- Added intelligent endpoint routing based on model type
+- Proper JSON escaping and error extraction for all APIs
+- Response parsing for different API formats (Responses API vs Chat Completions)
+
+**Documentation Updates:**
+- Updated README.md with API key setup instructions
+- Removed outdated CLI-based setup (Gemini CLI, MCP dependencies)
+- Added direct API configuration examples
+- Updated environment variable documentation
+- Clarified OpenAI Responses API usage for Codex models
+
+### Tested and Verified
+
+All three agents now successfully provide independent analyses and the chairman synthesis works correctly:
+- ✅ Claude agent providing thoughtful analysis
+- ✅ Gemini agent providing diverse perspectives
+- ✅ Codex agent providing coding-focused insights
+- ✅ Chairman synthesis identifying agreements and disagreements
+- ✅ Full 3/3 agent consensus working end-to-end
+
+---
+
 ## v4.1.0 (2025-12-31) - SignalNine Fork
 
 ### New Features
