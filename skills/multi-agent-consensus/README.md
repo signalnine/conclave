@@ -70,8 +70,9 @@ export ANTHROPIC_API_KEY="sk-ant-..."
 # Add to your shell profile (~/.bashrc, ~/.zshrc, etc.)
 echo 'export ANTHROPIC_API_KEY="sk-ant-..."' >> ~/.bashrc
 
-# Optional: Configure model (default: claude-opus-4-5-20251101)
+# Optional: Configure model and token limit
 export ANTHROPIC_MODEL="claude-opus-4-5-20251101"
+export ANTHROPIC_MAX_TOKENS="16000"  # Default: 16000, adjust if using models with lower limits
 ```
 
 **Gemini Agent (Optional but Recommended)**
@@ -102,8 +103,9 @@ export OPENAI_API_KEY="sk-..."
 # Add to your shell profile
 echo 'export OPENAI_API_KEY="sk-..."' >> ~/.bashrc
 
-# Optional: Configure model (default: gpt-5.1-codex-max)
+# Optional: Configure model and token limit
 export OPENAI_MODEL="gpt-5.1-codex-max"
+export OPENAI_MAX_TOKENS="16000"  # Default: 16000, adjust if using models with lower limits (e.g., 4096 for gpt-4-turbo)
 ```
 
 ### Minimum Requirements

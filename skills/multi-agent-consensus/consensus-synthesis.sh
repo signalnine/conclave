@@ -65,8 +65,10 @@ ENVIRONMENT VARIABLES:
 
   Optional configuration:
     ANTHROPIC_MODEL           Claude model (default: claude-opus-4-5-20251101)
+    ANTHROPIC_MAX_TOKENS      Max tokens for Claude (default: 16000)
     GEMINI_MODEL              Gemini model (default: gemini-3-pro-preview)
     OPENAI_MODEL              OpenAI model (default: gpt-5.1-codex-max)
+    OPENAI_MAX_TOKENS         Max tokens for OpenAI (default: 16000)
     CONSENSUS_STAGE1_TIMEOUT  Stage 1 timeout in seconds (default: 60)
     CONSENSUS_STAGE2_TIMEOUT  Stage 2 timeout in seconds (default: 60)
 
@@ -384,6 +386,7 @@ run_claude() {
 
     # Prepare the API request
     local model="${ANTHROPIC_MODEL:-claude-opus-4-5-20251101}"
+    local max_tokens="${ANTHROPIC_MAX_TOKENS:-16000}"
 
     # Escape the prompt for JSON
     local escaped_prompt=$(echo "$prompt" | jq -Rs .)
@@ -392,7 +395,7 @@ run_claude() {
     local json_payload=$(cat <<EOF
 {
   "model": "$model",
-  "max_tokens": 16000,
+  "max_tokens": $max_tokens,
   "messages": [
     {
       "role": "user",
@@ -546,6 +549,7 @@ run_codex() {
     # Prepare the API request
     # Note: gpt-5.1-codex-max uses the Responses API endpoint (for agentic coding tasks)
     local model="${OPENAI_MODEL:-gpt-5.1-codex-max}"
+    local max_tokens="${OPENAI_MAX_TOKENS:-16000}"
 
     # Escape the prompt for JSON
     local escaped_prompt=$(echo "$prompt" | jq -Rs .)
@@ -557,6 +561,7 @@ run_codex() {
 
     if [[ "$model" =~ ^gpt-5.*-codex ]]; then
         # Use Responses API endpoint for Codex models
+        # Note: Responses API does not support max_tokens parameter
         is_responses_api=true
         endpoint="https://api.openai.com/v1/responses"
         json_payload=$(cat <<EOF
@@ -577,7 +582,7 @@ EOF
         json_payload=$(cat <<EOF
 {
   "model": "$model",
-  "max_tokens": 16000,
+  "max_tokens": $max_tokens,
   "messages": [
     {
       "role": "user",
@@ -593,7 +598,7 @@ EOF
         json_payload=$(cat <<EOF
 {
   "model": "$model",
-  "max_tokens": 16000,
+  "max_tokens": $max_tokens,
   "prompt": $escaped_prompt
 }
 EOF

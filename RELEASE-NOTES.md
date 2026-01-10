@@ -1,5 +1,28 @@
 # Superpowers Release Notes
 
+## v4.2.2 (2026-01-10) - Restore Configurability with Higher Defaults
+
+### Bug Fixes
+
+**Restore max_tokens Configurability**
+
+Fixed issue identified by multi-agent consensus code review where hardcoded 16,000 token limit could cause API failures for models with lower limits:
+
+- **Restored** `ANTHROPIC_MAX_TOKENS` environment variable (default: 16000)
+- **Restored** `OPENAI_MAX_TOKENS` environment variable (default: 16000)
+- Users can now configure token limits for models with different capabilities
+- Example: Set `OPENAI_MAX_TOKENS=4096` when using `gpt-4-turbo`
+
+**Changes:**
+- Default increased from 4,096 to 16,000 tokens (generous for consensus analysis)
+- Users can override when using models with lower token limits
+- Documentation updated with examples for different model configurations
+- Note added for Responses API (doesn't support max_tokens parameter)
+
+This addresses the consensus review finding that removing configurability could break compatibility with certain models.
+
+---
+
 ## v4.2.1 (2026-01-10) - Configuration Simplification
 
 ### Improvements
