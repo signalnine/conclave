@@ -1,5 +1,29 @@
 # Superpowers Release Notes
 
+## v4.2.1 (2026-01-10) - Configuration Simplification
+
+### Improvements
+
+**Simplified Configuration**
+
+Removed configurable max_tokens parameters to simplify setup:
+
+- Removed `ANTHROPIC_MAX_TOKENS` environment variable
+- Removed `OPENAI_MAX_TOKENS` environment variable
+- All APIs now use hardcoded 16,000 token limit (generous for consensus analysis)
+- Cleaner documentation with fewer configuration options
+
+**Token Limits:**
+- Claude API: 16,000 tokens
+- OpenAI Chat Completions: 16,000 tokens
+- OpenAI Legacy Completions: 16,000 tokens
+- Gemini API: No max_tokens parameter (uses model defaults)
+- OpenAI Responses API: No max_tokens support (uses model defaults)
+
+This change simplifies the user experience while maintaining sufficient token capacity for detailed consensus analysis across all agents.
+
+---
+
 ## v4.2.0 (2026-01-10) - Multi-Agent Consensus API Integration
 
 ### Major Improvements
