@@ -72,7 +72,6 @@ echo 'export ANTHROPIC_API_KEY="sk-ant-..."' >> ~/.bashrc
 
 # Optional: Configure model (default: claude-opus-4-5-20251101)
 export ANTHROPIC_MODEL="claude-opus-4-5-20251101"
-export ANTHROPIC_MAX_TOKENS="4096"
 ```
 
 **Gemini Agent (Optional but Recommended)**
@@ -105,7 +104,6 @@ echo 'export OPENAI_API_KEY="sk-..."' >> ~/.bashrc
 
 # Optional: Configure model (default: gpt-5.1-codex-max)
 export OPENAI_MODEL="gpt-5.1-codex-max"
-export OPENAI_MAX_TOKENS="4096"
 ```
 
 ### Minimum Requirements
