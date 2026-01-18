@@ -5,9 +5,9 @@ description: Use when executing implementation plans with independent tasks in t
 
 # Subagent-Driven Development
 
-Execute plan by dispatching fresh subagent per task, with two-stage review after each: spec compliance review first, then code quality review.
+Execute plan by dispatching fresh subagent per task, with three-stage review after each: spec compliance review first, then code quality review, then multi-agent consensus review.
 
-**Core principle:** Fresh subagent per task + two-stage review (spec then quality) = high quality, fast iteration
+**Core principle:** Fresh subagent per task + three-stage review (spec, quality, consensus) = high quality, fast iteration
 
 ## When to Use
 
@@ -32,7 +32,7 @@ digraph when_to_use {
 **vs. Executing Plans (parallel session):**
 - Same session (no context switch)
 - Fresh subagent per task (no context pollution)
-- Two-stage review after each task: spec compliance first, then code quality
+- Three-stage review after each task: spec compliance, code quality, then multi-agent consensus
 - Faster iteration (no human-in-loop between tasks)
 
 ## The Process
@@ -53,6 +53,9 @@ digraph process {
         "Dispatch code quality reviewer subagent (./code-quality-reviewer-prompt.md)" [shape=box];
         "Code quality reviewer subagent approves?" [shape=diamond];
         "Implementer subagent fixes quality issues" [shape=box];
+        "Run consensus review (../multi-agent-consensus/auto-review.sh)" [shape=box];
+        "Consensus High Priority issues?" [shape=diamond];
+        "Implementer fixes High Priority issues" [shape=box];
         "Mark task complete in TodoWrite" [shape=box];
     }
 
@@ -74,7 +77,11 @@ digraph process {
     "Dispatch code quality reviewer subagent (./code-quality-reviewer-prompt.md)" -> "Code quality reviewer subagent approves?";
     "Code quality reviewer subagent approves?" -> "Implementer subagent fixes quality issues" [label="no"];
     "Implementer subagent fixes quality issues" -> "Dispatch code quality reviewer subagent (./code-quality-reviewer-prompt.md)" [label="re-review"];
-    "Code quality reviewer subagent approves?" -> "Mark task complete in TodoWrite" [label="yes"];
+    "Code quality reviewer subagent approves?" -> "Run consensus review (../multi-agent-consensus/auto-review.sh)" [label="yes"];
+    "Run consensus review (../multi-agent-consensus/auto-review.sh)" -> "Consensus High Priority issues?";
+    "Consensus High Priority issues?" -> "Implementer fixes High Priority issues" [label="yes"];
+    "Implementer fixes High Priority issues" -> "Run consensus review (../multi-agent-consensus/auto-review.sh)" [label="re-review"];
+    "Consensus High Priority issues?" -> "Mark task complete in TodoWrite" [label="no"];
     "Mark task complete in TodoWrite" -> "More tasks remain?";
     "More tasks remain?" -> "Dispatch implementer subagent (./implementer-prompt.md)" [label="yes"];
     "More tasks remain?" -> "Dispatch final code reviewer subagent for entire implementation" [label="no"];
@@ -119,6 +126,9 @@ Spec reviewer: ✅ Spec compliant - all requirements met, nothing extra
 [Get git SHAs, dispatch code quality reviewer]
 Code reviewer: Strengths: Good test coverage, clean. Issues: None. Approved.
 
+[Run consensus review: ../multi-agent-consensus/auto-review.sh "Completed task: Hook installation script"]
+Consensus: High Priority: None. Medium Priority: None. Consider: 1 suggestion. Approved.
+
 [Mark Task 1 complete]
 
 Task 2: Recovery modes
@@ -153,6 +163,9 @@ Implementer: Extracted PROGRESS_INTERVAL constant
 [Code reviewer reviews again]
 Code reviewer: ✅ Approved
 
+[Run consensus review: ../multi-agent-consensus/auto-review.sh "Completed task: Recovery modes"]
+Consensus: High Priority: None. All reviewers approve.
+
 [Mark Task 2 complete]
 
 ...
@@ -185,22 +198,24 @@ Done!
 
 **Quality gates:**
 - Self-review catches issues before handoff
-- Two-stage review: spec compliance, then code quality
+- Three-stage review: spec compliance, code quality, then multi-agent consensus
 - Review loops ensure fixes actually work
 - Spec compliance prevents over/under-building
 - Code quality ensures implementation is well-built
+- Consensus review catches issues via multiple AI perspectives (Claude, Gemini, Codex)
 
 **Cost:**
-- More subagent invocations (implementer + 2 reviewers per task)
+- More invocations (implementer + 2 reviewers + consensus per task)
 - Controller does more prep work (extracting all tasks upfront)
 - Review loops add iterations
+- Multi-agent consensus uses 3 external APIs (Claude, Gemini, Codex)
 - But catches issues early (cheaper than debugging later)
 
 ## Red Flags
 
 **Never:**
-- Skip reviews (spec compliance OR code quality)
-- Proceed with unfixed issues
+- Skip reviews (spec compliance OR code quality OR consensus)
+- Proceed with unfixed High Priority consensus issues
 - Dispatch multiple implementation subagents in parallel (conflicts)
 - Make subagent read plan file (provide full text instead)
 - Skip scene-setting context (subagent needs to understand where task fits)
@@ -209,7 +224,8 @@ Done!
 - Skip review loops (reviewer found issues = implementer fixes = review again)
 - Let implementer self-review replace actual review (both are needed)
 - **Start code quality review before spec compliance is ✅** (wrong order)
-- Move to next task while either review has open issues
+- **Start consensus review before code quality is ✅** (wrong order)
+- Move to next task while any review has open High Priority issues
 
 **If subagent asks questions:**
 - Answer clearly and completely
@@ -222,6 +238,11 @@ Done!
 - Repeat until approved
 - Don't skip the re-review
 
+**If consensus review finds issues:**
+- High Priority: Must fix before proceeding (implementer fixes, re-run consensus)
+- Medium Priority: Consider fixing (use judgment based on context)
+- Consider/Suggestions: Optional improvements (can proceed without fixing)
+
 **If subagent fails task:**
 - Dispatch fix subagent with specific instructions
 - Don't try to fix manually (context pollution)
@@ -232,6 +253,10 @@ Done!
 - **superpowers:writing-plans** - Creates the plan this skill executes
 - **superpowers:requesting-code-review** - Code review template for reviewer subagents
 - **superpowers:finishing-a-development-branch** - Complete development after all tasks
+
+**Consensus review uses:**
+- **../multi-agent-consensus/auto-review.sh** - Wrapper for multi-agent consensus
+- **../multi-agent-consensus/consensus-synthesis.sh** - Core multi-agent review engine
 
 **Subagents should use:**
 - **superpowers:test-driven-development** - Subagents follow TDD for each task

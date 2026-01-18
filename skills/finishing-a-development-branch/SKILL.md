@@ -37,7 +37,35 @@ Stop. Don't proceed to Step 2.
 
 **If tests pass:** Continue to Step 2.
 
-### Step 2: Determine Base Branch
+### Step 2: Final Consensus Review
+
+Before presenting merge options, run final multi-agent consensus review on all branch changes:
+
+```bash
+# Get base SHA from merge-base
+BASE=$(git merge-base origin/main HEAD)
+../multi-agent-consensus/auto-review.sh --base="$BASE" "Final review before merge"
+```
+
+**If High Priority issues found:**
+```
+Consensus review found High Priority issues:
+
+[Show issues]
+
+Recommend addressing before merge. Would you like to:
+1. Fix issues now
+2. Proceed anyway (not recommended)
+```
+
+**If Medium Priority issues found:**
+- Present them as recommendations
+- Don't block merge
+
+**If no issues or only Consider tier:**
+- Continue to Step 3
+
+### Step 3: Determine Base Branch
 
 ```bash
 # Try common base branches
@@ -46,7 +74,7 @@ git merge-base HEAD main 2>/dev/null || git merge-base HEAD master 2>/dev/null
 
 Or ask: "This branch split from main - is that correct?"
 
-### Step 3: Present Options
+### Step 4: Present Options
 
 Present exactly these 4 options:
 
@@ -63,7 +91,7 @@ Which option?
 
 **Don't add explanation** - keep options concise.
 
-### Step 4: Execute Choice
+### Step 5: Execute Choice
 
 #### Option 1: Merge Locally
 
@@ -84,7 +112,7 @@ git merge <feature-branch>
 git branch -d <feature-branch>
 ```
 
-Then: Cleanup worktree (Step 5)
+Then: Cleanup worktree (Step 6)
 
 #### Option 2: Push and Create PR
 
@@ -103,7 +131,7 @@ EOF
 )"
 ```
 
-Then: Cleanup worktree (Step 5)
+Then: Cleanup worktree (Step 6)
 
 #### Option 3: Keep As-Is
 
@@ -131,9 +159,9 @@ git checkout <base-branch>
 git branch -D <feature-branch>
 ```
 
-Then: Cleanup worktree (Step 5)
+Then: Cleanup worktree (Step 6)
 
-### Step 5: Cleanup Worktree
+### Step 6: Cleanup Worktree
 
 **For Options 1, 2, 4:**
 
@@ -164,6 +192,10 @@ git worktree remove <worktree-path>
 - **Problem:** Merge broken code, create failing PR
 - **Fix:** Always verify tests before offering options
 
+**Skipping consensus review**
+- **Problem:** Merge code with issues that multiple AI reviewers would catch
+- **Fix:** Always run consensus review before presenting options
+
 **Open-ended questions**
 - **Problem:** "What should I do next?" → ambiguous
 - **Fix:** Present exactly 4 structured options
@@ -181,11 +213,15 @@ git worktree remove <worktree-path>
 **Never:**
 - Proceed with failing tests
 - Merge without verifying tests on result
+- Skip consensus review before presenting options
+- Merge with unaddressed High Priority consensus issues
 - Delete work without confirmation
 - Force-push without explicit request
 
 **Always:**
 - Verify tests before offering options
+- Run consensus review before presenting options
+- Present High Priority issues and recommend fixing
 - Present exactly 4 options
 - Get typed confirmation for Option 4
 - Clean up worktree for Options 1 & 4 only
@@ -194,7 +230,10 @@ git worktree remove <worktree-path>
 
 **Called by:**
 - **subagent-driven-development** (Step 7) - After all tasks complete
-- **executing-plans** (Step 5) - After all batches complete
+- **executing-plans** (Step 6) - After all batches complete
+
+**Uses:**
+- **../multi-agent-consensus/auto-review.sh** - For final consensus review
 
 **Pairs with:**
 - **using-git-worktrees** - Cleans up worktree created by that skill

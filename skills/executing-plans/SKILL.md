@@ -30,19 +30,36 @@ For each task:
 3. Run verifications as specified
 4. Mark as completed
 
-### Step 3: Report
-When batch complete:
+### Step 3: Consensus Review
+After batch complete, run multi-agent consensus review:
+
+```bash
+# Auto-detects base SHA from origin/main
+../multi-agent-consensus/auto-review.sh "Completed batch: tasks N-M"
+```
+
+**If High Priority issues found:**
+- Fix issues before reporting
+- Re-run consensus after fixes
+
+**If Medium Priority or Consider only:**
+- Include in report for user awareness
+- Can proceed to report
+
+### Step 4: Report
+When batch complete and consensus reviewed:
 - Show what was implemented
 - Show verification output
+- Show consensus review summary (if any Medium Priority items)
 - Say: "Ready for feedback."
 
-### Step 4: Continue
+### Step 5: Continue
 Based on feedback:
 - Apply changes if needed
 - Execute next batch
-- Repeat until complete
+- Repeat Steps 2-4 until complete
 
-### Step 5: Complete Development
+### Step 6: Complete Development
 
 After all tasks complete and verified:
 - Announce: "I'm using the finishing-a-development-branch skill to complete this work."
@@ -71,6 +88,8 @@ After all tasks complete and verified:
 - Review plan critically first
 - Follow plan steps exactly
 - Don't skip verifications
+- Run consensus review after each batch
+- Fix High Priority consensus issues before reporting
 - Reference skills when plan says to
 - Between batches: just report and wait
 - Stop when blocked, don't guess
