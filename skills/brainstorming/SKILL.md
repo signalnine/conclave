@@ -39,13 +39,13 @@ Start by understanding the current project context, then ask questions one at a 
 - Use elements-of-style:writing-clearly-and-concisely skill if available
 - Commit the design document to git
 
-**Multi-Agent Design Validation (Optional):**
+**Multi-Agent Design Validation (Recommended):**
 
-After the user validates the complete design, offer multi-agent review:
+After the user validates the complete design, run multi-agent review:
 
-"Would you like multi-agent validation of this design? Claude, Gemini, and Codex will review for architectural flaws, over-engineering, and missing requirements."
+"Running multi-agent validation. Claude, Gemini, and Codex will review for architectural flaws, over-engineering, and missing requirements..."
 
-If yes:
+**Always run unless user explicitly skips:**
 1. Prepare validation prompt:
    ```
    Review this software design for issues. Find architectural flaws, missing
@@ -64,10 +64,14 @@ If yes:
    ```
 
 3. Present results:
-   "Multi-agent validation found X High Priority issues, Y Medium Priority, Z Consider.
-   Would you like to address the High Priority issues before proceeding?"
+   - **High Priority issues**: "Consensus found X critical concerns. Recommend addressing before implementation."
+   - **Medium Priority**: "Y moderate concerns identified. Review recommended."
+   - **Consider only**: "Design validated. Z minor suggestions noted."
 
-4. User decides: revise, proceed, or ask questions
+4. Handle response:
+   - High Priority issues → Revise design, re-run consensus
+   - User accepts concerns → Proceed to Implementation
+   - User wants details → Show full consensus breakdown from `/tmp/consensus-*.md`
 
 **Implementation (if continuing):**
 - Ask: "Ready to set up for implementation?"

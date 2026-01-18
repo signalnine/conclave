@@ -94,9 +94,32 @@ git commit -m "feat: add specific feature"
 - Reference relevant skills with @ syntax
 - DRY, YAGNI, TDD, frequent commits
 
+## Plan Validation with Multi-Agent Consensus
+
+**Before offering execution options**, validate the plan with multi-agent consensus:
+
+```bash
+PLAN_FILE="docs/plans/YYYY-MM-DD-<feature-name>.md"
+PLAN_TEXT=$(cat "$PLAN_FILE")
+
+skills/multi-agent-consensus/consensus-synthesis.sh --mode=general-prompt \
+  --prompt="Review this implementation plan for: 1) Architectural soundness - is the approach appropriate? 2) Risk assessment - what could go wrong? 3) Scope validation - is this over/under-engineered? 4) Missing steps - are there gaps in the plan? Rate each concern as HIGH/MEDIUM/LOW priority." \
+  --context="$PLAN_TEXT"
+```
+
+**Present results to user:**
+- **High Priority issues**: "Consensus found architectural concerns. Recommend addressing before implementation."
+- **Medium Priority**: "Some concerns raised. Would you like to review them?"
+- **Low/None**: "Plan validated by multi-agent review. Ready for execution."
+
+**Handle response:**
+- If High Priority issues → Revise plan, re-run consensus
+- If user accepts concerns → Proceed to Execution Handoff
+- If user wants to skip → Proceed (their choice)
+
 ## Execution Handoff
 
-After saving the plan, offer execution choice:
+After validation, offer execution choice:
 
 **"Plan complete and saved to `docs/plans/<filename>.md`. Two execution options:**
 

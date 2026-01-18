@@ -357,6 +357,10 @@ These techniques are part of systematic debugging and available in this director
 - **superpowers:test-driven-development** - For creating failing test case (Phase 4, Step 1)
 - **superpowers:verification-before-completion** - Verify fix worked before claiming success
 
+**Consensus tools:**
+- **skills/multi-agent-consensus/consensus-synthesis.sh** - Multi-agent root cause validation
+- **skills/multi-agent-consensus/auto-review.sh** - Auto-detect SHAs for code review after fix
+
 ## Real-World Impact
 
 From debugging sessions:

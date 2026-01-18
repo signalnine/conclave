@@ -130,10 +130,44 @@ From 24 failure memories:
 - Implications of success
 - ANY communication suggesting completion/correctness
 
+## Multi-Agent Final Verification (For Significant Work)
+
+**When to use:** Before claiming completion on significant features, bug fixes, or refactors.
+
+**When to skip:** Trivial changes, typos, single-line fixes.
+
+After local verification passes, run multi-agent consensus on the changes:
+
+```bash
+# Auto-detects base SHA, reviews all changes
+skills/multi-agent-consensus/auto-review.sh "Final verification: <description>"
+```
+
+**Present results:**
+- **High Priority issues**: "Consensus found issues. Must address before claiming complete."
+- **Medium Priority**: "Some concerns raised. Review before finalizing."
+- **Consider only**: "Verified by local tests AND multi-agent review. Work complete."
+
+**This catches:**
+- Issues your tests don't cover
+- Patterns that look wrong to fresh eyes
+- Edge cases you didn't consider
+- Security or performance concerns
+
+**The enhanced gate function for significant work:**
+```
+1. IDENTIFY: What command proves this claim?
+2. RUN: Execute the FULL command (fresh, complete)
+3. READ: Full output, check exit code, count failures
+4. VERIFY: Does output confirm the claim?
+5. CONSENSUS: Run multi-agent review on changes
+6. ONLY THEN: Make the claim
+```
+
 ## The Bottom Line
 
 **No shortcuts for verification.**
 
-Run the command. Read the output. THEN claim the result.
+Run the command. Read the output. Get consensus on significant work. THEN claim the result.
 
 This is non-negotiable.
