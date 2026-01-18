@@ -1,5 +1,48 @@
 # Superpowers Release Notes
 
+## v4.4.0 (2026-01-18) - Consensus Autopilot for Brainstorming
+
+### New Features
+
+**Consensus Autopilot Mode**
+
+Brainstorming now offers two modes at the start:
+- **Interactive** - Traditional Q&A with the user
+- **Consensus Autopilot** - Multi-agent consensus answers design questions automatically
+
+In autopilot mode:
+- Watch as Claude, Gemini, and Codex debate each design decision
+- Narrated progress shows each question and recommendation
+- Interrupt anytime to override a decision
+- Go back to revisit earlier choices (re-runs subsequent questions fresh)
+- Session checkpoints for recovery if interrupted
+
+**Session Persistence**
+
+Brainstorming sessions now save checkpoints after each decision:
+- Recover from browser close or connection loss
+- Resume from where you left off
+- Automatic cleanup after successful completion
+
+**Error Handling**
+
+- Graceful fallback to interactive mode when consensus unavailable
+- Split decision handling (2-1 votes escalate to user)
+- Self-disagreement flagging when validation differs from earlier choices
+
+### Tests
+
+- `test-auto-review.sh` - 13 automated tests for the auto-review wrapper
+- `TEST-AUTOPILOT.md` - 12 manual integration tests for autopilot mode
+
+### Documentation
+
+- Updated README with fork comparison vs upstream
+- Added council.png image showing multi-agent review concept
+- Comprehensive design doc at `docs/plans/2025-01-18-consensus-autopilot-brainstorming-design.md`
+
+---
+
 ## v4.3.0 (2026-01-17) - Automatic Multi-Agent Consensus Integration
 
 ### New Features
