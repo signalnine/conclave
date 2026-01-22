@@ -101,14 +101,16 @@ Thanks!
 In Claude Code, register the marketplace first:
 
 ```bash
-/plugin marketplace add obra/superpowers-marketplace
+/plugin marketplace add signalnine/honest-gabes-marketplace
 ```
 
 Then install the plugin from this marketplace:
 
 ```bash
-/plugin install superpowers@superpowers-marketplace
+/plugin install superpowers@honest-gabes-marketplace
 ```
+
+> **Note:** This fork is available from [Honest Gabe's Marketplace](https://github.com/signalnine/honest-gabes-marketplace). For the upstream version without multi-agent consensus, use `obra/superpowers-marketplace` instead.
 
 ### Verify Installation
 
