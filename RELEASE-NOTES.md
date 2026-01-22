@@ -1,5 +1,58 @@
 # Superpowers Release Notes
 
+## v4.5.0 (2026-01-21) - Ralph Loop Autonomous Iteration
+
+### New Features
+
+**Ralph Loop Skill**
+
+New `ralph-loop` skill for autonomous task iteration with fresh context per retry:
+
+- **Fresh context:** Each iteration is a clean `claude -p` invocation (no polluted context from failed attempts)
+- **Iteration cap:** Max 5 attempts per task (configurable via `RALPH_TIMEOUT_*` env vars)
+- **Stuck detection:** Same error 3x triggers strategy shift directive, then abort
+- **Failure branches:** If cap hit, creates `wip/ralph-fail-{task}-{timestamp}` branch and continues
+- **Gates:** Tests → Spec compliance → Code quality (all automated with timeouts)
+- **State tracking:** JSON-based state file (`.ralph_state.json`) + LLM-readable context (`.ralph_context.md`)
+
+Inspired by Geoffrey Huntley's "Ralph Wiggum loop" technique for autonomous coding.
+
+**Subagent-Driven Development Integration**
+
+`subagent-driven-development` now uses `ralph-loop` for each task:
+
+- Tasks run through `ralph-runner.sh` instead of dispatching subagents directly
+- Each retry iteration gets completely fresh context (breaks stuck patterns)
+- Failed tasks get branched and skipped (plan continues forward)
+- Consensus review runs after ralph-loop succeeds
+
+**Key benefits:**
+- No more infinite fix loops (iteration cap)
+- Fresh context per retry (can break out of stuck patterns)
+- Forward progress guaranteed (failed tasks don't block plan)
+- Failure branches preserve work for later review
+
+### Files Added
+
+- `skills/ralph-loop/SKILL.md` - Skill documentation
+- `skills/ralph-loop/ralph-runner.sh` - Main runner script
+- `skills/ralph-loop/test-ralph-loop.sh` - Automated tests
+- `skills/ralph-loop/examples/mock-task.md` - Example task spec
+- `skills/ralph-loop/lib/state.sh` - JSON state management
+- `skills/ralph-loop/lib/lock.sh` - Concurrency prevention
+- `skills/ralph-loop/lib/timeout.sh` - Per-gate timeouts
+- `skills/ralph-loop/lib/stuck.sh` - Stuck detection
+- `skills/ralph-loop/lib/failure.sh` - Failure branch creation
+- `skills/ralph-loop/lib/gates.sh` - Test/spec/quality gate runners
+
+### Files Modified
+
+- `skills/subagent-driven-development/SKILL.md` - Rewritten to use ralph-loop
+- `.gitignore` - Added ralph loop state files
+- `README.md` - Added ralph-loop to skills list
+
+---
+
 ## v4.4.0 (2026-01-18) - Consensus Autopilot for Brainstorming
 
 ### New Features
