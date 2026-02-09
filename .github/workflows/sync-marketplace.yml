@@ -40,6 +40,12 @@ jobs:
              '.plugins[0].description = $desc' \
              plugins.json > plugins.json.tmp && mv plugins.json.tmp plugins.json
 
+          # Update version in .claude-plugin/marketplace.json
+          jq --arg ver "${{ steps.extract.outputs.version }}" \
+             '(.plugins[] | select(.name == "conclave")).version = $ver' \
+             .claude-plugin/marketplace.json > .claude-plugin/marketplace.json.tmp \
+             && mv .claude-plugin/marketplace.json.tmp .claude-plugin/marketplace.json
+
           # Check if anything changed
           if git diff --quiet; then
             echo "No changes to marketplace"
@@ -49,6 +55,6 @@ jobs:
           # Commit and push
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
-          git add plugins.json
-          git commit -m "chore: sync description from conclave v${{ steps.extract.outputs.version }}"
+          git add plugins.json .claude-plugin/marketplace.json
+          git commit -m "chore: sync conclave to v${{ steps.extract.outputs.version }}"
           git push
