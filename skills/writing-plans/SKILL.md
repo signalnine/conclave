@@ -54,6 +54,8 @@ Assume they are a skilled developer, but know almost nothing about our toolset o
 - Modify: `exact/path/to/existing.py:123-145`
 - Test: `tests/exact/path/to/test.py`
 
+**Dependencies:** [Task N, Task M] or none
+
 **Step 1: Write the failing test**
 
 ```python
@@ -92,6 +94,7 @@ git commit -m "feat: add specific feature"
 - Complete code in plan (not "add validation")
 - Exact commands with expected output
 - Reference relevant skills with @ syntax
+- Include Dependencies field for every task (required for parallel execution)
 - DRY, YAGNI, TDD, frequent commits
 
 ## Plan Validation with Multi-Agent Consensus

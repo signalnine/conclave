@@ -5,9 +5,9 @@ description: Use when executing implementation plans with independent tasks in t
 
 # Subagent-Driven Development
 
-Execute plan by running each task through **ralph-loop** for autonomous iteration with fresh context, then consensus review.
+Execute plan by running tasks in parallel waves via git worktrees, each through **ralph-loop** for autonomous iteration with fresh context, then consensus review.
 
-**Core principle:** Fresh context per iteration (ralph-loop) + consensus review = autonomous, high-quality task completion
+**Core principle:** Parallel waves (worktree isolation) + fresh context per iteration (ralph-loop) + consensus review = autonomous, high-quality task completion
 
 ## Ralph Loop Integration
 
@@ -51,220 +51,145 @@ digraph when_to_use {
 digraph process {
     rankdir=TB;
 
-    subgraph cluster_per_task {
-        label="Per Task (via ralph-loop)";
-        "Write task spec to temp file" [shape=box];
-        "Run ralph-runner.sh" [shape=box style=filled fillcolor=lightyellow];
-        "Ralph-loop: implement → test → spec → quality" [shape=box];
-        "Ralph-loop succeeded?" [shape=diamond];
-        "Run consensus review" [shape=box];
-        "Consensus High Priority issues?" [shape=diamond];
-        "Mark task COMPLETE" [shape=box style=filled fillcolor=lightgreen];
-        "Mark task FAILED (branch created)" [shape=box style=filled fillcolor=lightcoral];
+    "Parse plan, build dependency DAG" [shape=box];
+    "Compute waves from dependencies" [shape=box];
+
+    subgraph cluster_per_wave {
+        label="Per Wave";
+        "Create worktree per task" [shape=box];
+        "Launch ralph-runner.sh in parallel" [shape=box style=filled fillcolor=lightyellow];
+        "Poll for completion" [shape=box];
+        "Squash-merge completed tasks (plan order)" [shape=box];
+        "Conflict? Re-run from merged state" [shape=diamond];
     }
 
-    "Read plan, extract all tasks, create TodoWrite" [shape=box];
-    "More tasks remain?" [shape=diamond];
-    "Run final consensus review on all changes" [shape=box];
+    "More waves?" [shape=diamond];
+    "Run final consensus review" [shape=box];
+    "Cleanup worktrees, print summary" [shape=box];
     "Use superpowers:finishing-a-development-branch" [shape=box style=filled fillcolor=lightgreen];
 
-    "Read plan, extract all tasks, create TodoWrite" -> "Write task spec to temp file";
-    "Write task spec to temp file" -> "Run ralph-runner.sh";
-    "Run ralph-runner.sh" -> "Ralph-loop: implement → test → spec → quality";
-    "Ralph-loop: implement → test → spec → quality" -> "Ralph-loop succeeded?";
-    "Ralph-loop succeeded?" -> "Run consensus review" [label="yes (exit 0)"];
-    "Ralph-loop succeeded?" -> "Mark task FAILED (branch created)" [label="no (exit 1)"];
-    "Run consensus review" -> "Consensus High Priority issues?";
-    "Consensus High Priority issues?" -> "Mark task FAILED (branch created)" [label="yes - needs rework"];
-    "Consensus High Priority issues?" -> "Mark task COMPLETE" [label="no"];
-    "Mark task COMPLETE" -> "More tasks remain?";
-    "Mark task FAILED (branch created)" -> "More tasks remain?";
-    "More tasks remain?" -> "Write task spec to temp file" [label="yes"];
-    "More tasks remain?" -> "Run final consensus review on all changes" [label="no"];
-    "Run final consensus review on all changes" -> "Use superpowers:finishing-a-development-branch";
+    "Parse plan, build dependency DAG" -> "Compute waves from dependencies";
+    "Compute waves from dependencies" -> "Create worktree per task";
+    "Create worktree per task" -> "Launch ralph-runner.sh in parallel";
+    "Launch ralph-runner.sh in parallel" -> "Poll for completion";
+    "Poll for completion" -> "Squash-merge completed tasks (plan order)";
+    "Squash-merge completed tasks (plan order)" -> "Conflict? Re-run from merged state";
+    "Conflict? Re-run from merged state" -> "More waves?" [label="resolved or max retries"];
+    "More waves?" -> "Create worktree per task" [label="yes (next wave branches from merged state)"];
+    "More waves?" -> "Run final consensus review" [label="no"];
+    "Run final consensus review" -> "Cleanup worktrees, print summary";
+    "Cleanup worktrees, print summary" -> "Use superpowers:finishing-a-development-branch";
 }
 ```
 
 ## Task Execution
 
-For each task in the plan:
+### Parallel Execution (default)
 
-### Step 1: Write Task Spec
+Run all tasks through `parallel-runner.sh`:
 
 ```bash
-# Create temp file with task spec
+./skills/subagent-driven-development/parallel-runner.sh \
+    docs/plans/YYYY-MM-DD-feature.md \
+    --max-concurrent 3 \
+    --non-interactive
+```
+
+The orchestrator handles everything automatically:
+1. **Parse plan** - Extracts tasks, dependencies, files
+2. **Compute waves** - Groups tasks by dependency depth
+3. **Execute waves** - Per wave:
+   - Creates git worktree per task (from merged state of prior waves)
+   - Launches `ralph-runner.sh --worktree` in each worktree in parallel
+   - Polls for completion
+   - Squash-merges completed tasks in plan order
+   - Re-runs tasks on merge conflicts (up to `PARALLEL_MAX_CONFLICT_RERUNS`)
+4. **Consensus review** - Runs `auto-review.sh` on all merged changes
+5. **Cleanup** - Removes worktrees, prints summary
+
+### Dry Run (preview schedule)
+
+```bash
+./skills/subagent-driven-development/parallel-runner.sh \
+    docs/plans/YYYY-MM-DD-feature.md \
+    --dry-run
+```
+
+### Sequential Fallback
+
+For tightly-coupled tasks or debugging, run tasks one at a time:
+
+```bash
 TASK_SPEC=$(mktemp --suffix=.md)
-cat > "$TASK_SPEC" << 'EOF'
-# Task: [task name]
-
-## Context
-[Scene-setting: what this task is part of, what exists already]
-
-## Requirements
-[Full task requirements from plan]
-
-## Success Criteria
-- [ ] [criterion 1]
-- [ ] [criterion 2]
-- [ ] All tests pass
-- [ ] Code committed
-
-## Files
-- Create/Modify: [file paths from plan]
-- Test: [test file paths]
-EOF
-```
-
-### Step 2: Run Ralph Loop
-
-```bash
-# Run task through ralph-loop (autonomous iteration)
-./skills/ralph-loop/ralph-runner.sh \
-    "task-name" \
-    "$TASK_SPEC" \
-    --non-interactive \
-    -d "$(pwd)"
-
-RALPH_EXIT=$?
-```
-
-Ralph-loop handles internally:
-1. **Implement:** Fresh `claude -p` with task spec + previous failure context
-2. **Test gate:** Auto-detect and run tests (npm/cargo/pytest/go)
-3. **Spec gate:** Fresh `claude -p` to verify spec compliance
-4. **Quality gate:** Run linters (soft - warnings only)
-5. **Retry:** If any hard gate fails, iterate with fresh context
-6. **Stuck detection:** Same error 3x triggers strategy shift directive
-7. **Failure branch:** If cap hit, create `wip/ralph-fail-{task}-{timestamp}` branch
-
-### Step 3: Consensus Review (if ralph-loop succeeded)
-
-```bash
-if [ $RALPH_EXIT -eq 0 ]; then
-    # Ralph-loop succeeded, run consensus review
-    ./skills/multi-agent-consensus/auto-review.sh "Completed task: [task name]"
-
-    # Check for High Priority issues
-    # If High Priority: mark task failed, continue
-    # If no High Priority: mark task complete
-fi
-```
-
-### Step 4: Update TodoWrite
-
-```bash
-if [ $RALPH_EXIT -eq 0 ] && [ no_high_priority_issues ]; then
-    # Mark task COMPLETE in TodoWrite
-else
-    # Mark task FAILED in TodoWrite
-    # Failure branch already created by ralph-loop
-fi
+# Write task spec...
+./skills/ralph-loop/ralph-runner.sh "task-name" "$TASK_SPEC" --non-interactive -d "$(pwd)"
 ```
 
 ## Example Workflow
 
 ```
-You: I'm using Subagent-Driven Development to execute this plan.
-
-[Read plan file: docs/plans/feature-plan.md]
-[Extract all 5 tasks]
-[Create TodoWrite with all tasks]
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Task 1: Hook installation script
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-[Write task spec to /tmp/task-1-spec.md]
-[Run: ./skills/ralph-loop/ralph-runner.sh "hook-install" "/tmp/task-1-spec.md" --non-interactive]
-
-Ralph Loop: hook-install
-Max iterations: 5
-========== Iteration 1/5 ==========
-[1/3] Implementation... (fresh claude -p)
-[2/3] Running tests... PASS
-[3/3] Spec compliance review... PASS
-[soft] Code quality check... 0 warnings
 ========================================
-SUCCESS: hook-install completed in 1 iteration
+Parallel Runner
+Plan: docs/plans/feature-plan.md
+Max concurrent: 3
+Base branch: feature/my-feature
 ========================================
 
-[Run consensus review]
-Consensus: High Priority: None. Approved.
+--- Phase 1: Parsing Plan ---
+Tasks found: 5
+Waves: 3
+  Wave 0: tasks 1 2 3
+  Wave 1: tasks 4
+  Wave 2: tasks 5
 
-[Mark Task 1 COMPLETE ✓]
+--- Phase 2: Setup ---
+
+--- Phase 3: Executing Waves ---
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Task 2: Recovery modes
+Wave 0
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[WAVE 0] Launching Task 1: Create utilities
+[WAVE 0] Launching Task 2: Build core module
+[WAVE 0] Launching Task 3: Add config parser
+[WAVE 0] Task 1 COMPLETED
+[WAVE 0] Task 2 COMPLETED
+[WAVE 0] Task 3 FAILED (exit 1)
 
-[Write task spec to /tmp/task-2-spec.md]
-[Run: ./skills/ralph-loop/ralph-runner.sh "recovery-modes" "/tmp/task-2-spec.md" --non-interactive]
+[WAVE 0] Merging completed tasks...
+[MERGE] Squash-merging task/1-create-utilities...
+[MERGE] Successfully merged task/1-create-utilities
+[MERGE] Squash-merging task/2-build-core-module...
+[MERGE] Successfully merged task/2-build-core-module
 
-Ralph Loop: recovery-modes
-========== Iteration 1/5 ==========
-[1/3] Implementation...
-[2/3] Running tests... FAIL
-FAIL: update_state "tests" 1 "expected 'fixed' got 'broken'"
-========== Iteration 2/5 ==========
-[1/3] Implementation... (fresh context + previous error)
-[2/3] Running tests... PASS
-[3/3] Spec compliance... FAIL (missing progress reporting)
-========== Iteration 3/5 ==========
-[1/3] Implementation... (fresh context + spec feedback)
-[2/3] Running tests... PASS
-[3/3] Spec compliance... PASS
-[soft] Code quality... 1 warning (magic number)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Wave 1
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[WAVE 1] Launching Task 4: Integration layer
+[WAVE 1] Task 4 COMPLETED
+
+[WAVE 1] Merging completed tasks...
+[MERGE] Successfully merged task/4-integration-layer
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Wave 2
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[WAVE 2] Launching Task 5: CLI entry point
+[WAVE 2] Task 5 COMPLETED
+
+--- Phase 4: Consensus Review ---
+Running consensus review on all merged changes...
+
+--- Cleanup ---
+
 ========================================
-SUCCESS: recovery-modes completed in 3 iterations
+PARALLEL EXECUTION SUMMARY
 ========================================
-
-[Run consensus review]
-Consensus: High Priority: None. Medium: Extract constant. Approved.
-
-[Mark Task 2 COMPLETE ✓]
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Task 3: Rate limiting (fails)
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-[Write task spec to /tmp/task-3-spec.md]
-[Run ralph-loop...]
-
-Ralph Loop: rate-limiting
-========== Iteration 1/5 ==========
-[2/3] Running tests... FAIL (race condition)
-========== Iteration 2/5 ==========
-[2/3] Running tests... FAIL (race condition)
-========== Iteration 3/5 ==========
-STUCK: Same error 3 times
-[2/3] Running tests... FAIL (race condition)
-========== Iteration 4/5 ==========
-[2/3] Running tests... FAIL (different approach, still fails)
-========== Iteration 5/5 ==========
-[2/3] Running tests... FAIL
+  Completed: 4/5
+  Failed:    1
+  Skipped:   0
 ========================================
-CAP HIT: rate-limiting failed after 5 iterations
-========================================
-Creating failure branch: wip/ralph-fail-rate-limiting-20260121-123456
-Failed work preserved in branch: wip/ralph-fail-rate-limiting-20260121-123456
-
-[Mark Task 3 FAILED ✗ - branch: wip/ralph-fail-rate-limiting-20260121-123456]
-[Continue to Task 4...]
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-... Tasks 4-5 ...
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-[After all tasks]
-[Run final consensus review on all completed work]
-[Use superpowers:finishing-a-development-branch]
-
-Summary:
-- Completed: 4/5 tasks
-- Failed: 1 task (rate-limiting)
-  - Branch: wip/ralph-fail-rate-limiting-20260121-123456
-  - Error: Race condition in token bucket
-  - Iterations: 5/5, stuck on same error
+  Task 3 (Add config parser): FAILED - check wip/ralph-fail-* branches
 ```
 
 ## Advantages
@@ -292,7 +217,15 @@ Summary:
 
 ## Configuration
 
-Environment variables (passed to ralph-loop):
+Environment variables for parallel execution:
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `PARALLEL_MAX_CONCURRENT` | 3 | Max simultaneous tasks per wave |
+| `PARALLEL_WORKTREE_DIR` | .worktrees | Worktree directory |
+| `PARALLEL_MAX_CONFLICT_RERUNS` | 2 | Max re-runs for merge conflicts |
+
+Environment variables for ralph-loop (per-task):
 
 | Variable | Default | Description |
 |----------|---------|-------------|
@@ -307,14 +240,16 @@ Environment variables (passed to ralph-loop):
 - Start implementation on main/master branch without explicit user consent
 - Skip consensus review after ralph-loop succeeds
 - Proceed with High Priority consensus issues
-- Run multiple ralph-loops in parallel (git conflicts)
+- Run parallel-runner.sh without worktree isolation
+- Merge task branches out of plan order
+- Create dependent task worktrees from base branch (must use merged state)
 - Manually intervene during ralph-loop execution
 - Skip failed tasks without creating failure branch
 
 **If ralph-loop fails:**
 - Failure branch already created
-- Mark task FAILED in TodoWrite
-- Continue to next task
+- Task marked FAILED, dependents marked SKIPPED
+- Continue to next task in wave
 - Don't try to fix manually
 
 **If consensus finds High Priority issues:**
@@ -335,6 +270,11 @@ Environment variables (passed to ralph-loop):
 
 ## Files
 
+- `./parallel-runner.sh` - Main orchestrator for parallel execution
+- `./lib/parse-plan.sh` - Plan parser (tasks, dependencies, waves)
+- `./lib/scheduler.sh` - Wave-based task scheduler
+- `./lib/merge.sh` - Squash-merge with conflict detection
+- `./lib/helpers.sh` - Worktree setup and utility functions
 - `./implementer-prompt.md` - Reference for task spec format (used by ralph-loop internally)
 - `./spec-reviewer-prompt.md` - Reference for spec review (used by ralph-loop internally)
 - `./code-quality-reviewer-prompt.md` - Reference for quality review
