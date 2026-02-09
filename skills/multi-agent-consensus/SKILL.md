@@ -25,14 +25,14 @@ Use when you need diverse AI perspectives to reduce bias and blind spots:
 
 **Code review mode:**
 ```bash
-consensus-synthesis.sh --mode=code-review \
+conclave consensus --mode=code-review \
   --base-sha="$BASE" --head-sha="$HEAD" \
   --plan-file="$PLAN" --description="$DESC"
 ```
 
 **General prompt mode:**
 ```bash
-consensus-synthesis.sh --mode=general-prompt \
+conclave consensus --mode=general-prompt \
   --prompt="Your question here" \
   --context="Optional background info"
 ```
@@ -68,7 +68,7 @@ export CONSENSUS_STAGE1_TIMEOUT=90
 export CONSENSUS_STAGE2_TIMEOUT=90
 
 # Via CLI flags
-consensus-synthesis.sh --mode=general-prompt \
+conclave consensus --mode=general-prompt \
   --prompt="Your question" \
   --stage1-timeout=90 \
   --stage2-timeout=90

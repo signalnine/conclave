@@ -35,7 +35,7 @@ After batch complete, run multi-agent consensus review:
 
 ```bash
 # Auto-detects base SHA from origin/main
-../multi-agent-consensus/auto-review.sh "Completed batch: tasks N-M"
+conclave auto-review "Completed batch: tasks N-M"
 ```
 
 **If High Priority issues found:**

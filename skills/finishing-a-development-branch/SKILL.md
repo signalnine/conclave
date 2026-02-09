@@ -44,7 +44,7 @@ Before presenting merge options, run final multi-agent consensus review on all b
 ```bash
 # Get base SHA from merge-base
 BASE=$(git merge-base origin/main HEAD)
-../multi-agent-consensus/auto-review.sh --base="$BASE" "Final review before merge"
+conclave auto-review --base="$BASE" "Final review before merge"
 ```
 
 **If High Priority issues found:**
@@ -233,7 +233,7 @@ git worktree remove <worktree-path>
 - **executing-plans** (Step 6) - After all batches complete
 
 **Uses:**
-- **../multi-agent-consensus/auto-review.sh** - For final consensus review
+- **conclave auto-review** - For final consensus review
 
 **Pairs with:**
 - **using-git-worktrees** - Cleans up worktree created by that skill

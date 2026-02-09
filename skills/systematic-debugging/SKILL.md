@@ -201,7 +201,7 @@ Before implementing fix, validate root cause with multiple agents.
 
 2. **Invoke consensus:**
    ```bash
-   skills/multi-agent-consensus/consensus-synthesis.sh --mode=general-prompt \
+   conclave consensus --mode=general-prompt \
      --prompt="Review this root cause analysis. Does the hypothesis explain all observed symptoms? Are there alternative explanations we should consider? Are there gaps in the evidence? Rate your confidence in this diagnosis as STRONG/MODERATE/WEAK." \
      --context="$DEBUGGING_CONTEXT"
    ```
@@ -358,8 +358,8 @@ These techniques are part of systematic debugging and available in this director
 - **conclave:verification-before-completion** - Verify fix worked before claiming success
 
 **Consensus tools:**
-- **skills/multi-agent-consensus/consensus-synthesis.sh** - Multi-agent root cause validation
-- **skills/multi-agent-consensus/auto-review.sh** - Auto-detect SHAs for code review after fix
+- **conclave consensus** - Multi-agent root cause validation
+- **conclave auto-review** - Auto-detect SHAs for code review after fix
 
 ## Real-World Impact
 

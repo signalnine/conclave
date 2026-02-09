@@ -101,7 +101,7 @@ When user selects autopilot, announce: "Starting autopilot. I'll narrate each de
 
 2. **Call consensus:**
    ```bash
-   ../multi-agent-consensus/consensus-synthesis.sh --mode=general-prompt \
+   conclave consensus --mode=general-prompt \
      --prompt="$FORMATTED_QUESTION" \
      --context="$PROJECT_CONTEXT"
    ```
@@ -248,7 +248,7 @@ After the user validates the complete design, run multi-agent review:
    ```bash
    DESIGN_TEXT=$(cat "docs/plans/YYYY-MM-DD-<topic>-design.md")
 
-   ../multi-agent-consensus/consensus-synthesis.sh --mode=general-prompt \
+   conclave consensus --mode=general-prompt \
      --prompt="Review this software design..." \
      --context="$DESIGN_TEXT"
    ```

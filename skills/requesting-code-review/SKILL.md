@@ -38,7 +38,7 @@ DESCRIPTION="Brief description of what was implemented"
 **3. Run multi-agent consensus:**
 
 ```bash
-../multi-agent-consensus/consensus-synthesis.sh --mode=code-review \
+conclave consensus --mode=code-review \
   --base-sha="$BASE_SHA" \
   --head-sha="$HEAD_SHA" \
   --plan-file="$PLAN_FILE" \
@@ -82,7 +82,7 @@ PLAN_FILE="docs/plans/deployment-plan.md"
 DESCRIPTION="Added verifyIndex() and repairIndex() with 4 issue types"
 
 # Run multi-agent consensus
-[Invoke ../multi-agent-consensus/consensus-synthesis.sh]
+[Invoke conclave consensus]
 
 # Framework produces consensus report:
 ## High Priority - All Reviewers Agree
@@ -157,7 +157,7 @@ You: [Fix magic number]
 
 ## Files
 
-- `../multi-agent-consensus/consensus-synthesis.sh` - Multi-agent consensus framework (code-review mode)
+- `conclave consensus` - Multi-agent consensus framework (code-review mode)
 - `code-reviewer.md` - Claude agent definition (legacy, for single-reviewer mode)
-- `multi-review.sh` - Legacy script (deprecated, use consensus-synthesis.sh instead)
+- `multi-review.sh` - Legacy script (deprecated, use `conclave consensus` instead)
 - `README.md` - Architecture documentation

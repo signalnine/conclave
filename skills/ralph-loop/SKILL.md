@@ -24,11 +24,11 @@ Each iteration:
 ## Usage
 
 ```bash
-./skills/ralph-loop/ralph-runner.sh <task-id> <task-prompt-file> [options]
+conclave ralph-run <task-id> <task-prompt-file> [options]
 
 # Examples
-./ralph-runner.sh "add-auth" ./specs/auth-feature.md
-./ralph-runner.sh "fix-bug-123" ./specs/bug-123.md -n 3 --non-interactive
+conclave ralph-run "add-auth" ./specs/auth-feature.md
+conclave ralph-run "fix-bug-123" ./specs/bug-123.md -n 3 --non-interactive
 ```
 
 ### Arguments
@@ -153,7 +153,7 @@ Lockfile (`.ralph.lock`) prevents concurrent runs in same worktree. Stale locks 
 ```bash
 # In plan execution loop
 for task in $(get_tasks_from_plan); do
-    ./skills/ralph-loop/ralph-runner.sh "$task" "./specs/$task.md" || {
+    conclave ralph-run "$task" "./specs/$task.md" || {
         echo "Task $task failed, continuing..."
     }
 done

@@ -140,7 +140,7 @@ After local verification passes, run multi-agent consensus on the changes:
 
 ```bash
 # Auto-detects base SHA, reviews all changes
-skills/multi-agent-consensus/auto-review.sh "Final verification: <description>"
+conclave auto-review "Final verification: <description>"
 ```
 
 **Present results:**

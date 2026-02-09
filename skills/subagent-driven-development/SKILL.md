@@ -11,7 +11,7 @@ Execute plan by running tasks in parallel waves via git worktrees, each through 
 
 ## Ralph Loop Integration
 
-Each task runs through `ralph-runner.sh`:
+Each task runs through `conclave ralph-run`:
 - **Fresh context:** Each iteration is a clean `claude -p` invocation (no polluted context)
 - **Iteration cap:** Max 5 attempts per task (configurable)
 - **Stuck detection:** Same error 3x = try different approach or abort
@@ -57,7 +57,7 @@ digraph process {
     subgraph cluster_per_wave {
         label="Per Wave";
         "Create worktree per task" [shape=box];
-        "Launch ralph-runner.sh in parallel" [shape=box style=filled fillcolor=lightyellow];
+        "Launch conclave ralph-run in parallel" [shape=box style=filled fillcolor=lightyellow];
         "Poll for completion" [shape=box];
         "Squash-merge completed tasks (plan order)" [shape=box];
         "Conflict? Re-run from merged state" [shape=diamond];
@@ -70,8 +70,8 @@ digraph process {
 
     "Parse plan, build dependency DAG" -> "Compute waves from dependencies";
     "Compute waves from dependencies" -> "Create worktree per task";
-    "Create worktree per task" -> "Launch ralph-runner.sh in parallel";
-    "Launch ralph-runner.sh in parallel" -> "Poll for completion";
+    "Create worktree per task" -> "Launch conclave ralph-run in parallel";
+    "Launch conclave ralph-run in parallel" -> "Poll for completion";
     "Poll for completion" -> "Squash-merge completed tasks (plan order)";
     "Squash-merge completed tasks (plan order)" -> "Conflict? Re-run from merged state";
     "Conflict? Re-run from merged state" -> "More waves?" [label="resolved or max retries"];
@@ -86,10 +86,10 @@ digraph process {
 
 ### Parallel Execution (default)
 
-Run all tasks through `parallel-runner.sh`:
+Run all tasks through `conclave parallel-run`:
 
 ```bash
-./skills/subagent-driven-development/parallel-runner.sh \
+./skills/subagent-driven-development/conclave parallel-run \
     docs/plans/YYYY-MM-DD-feature.md \
     --max-concurrent 3 \
     --non-interactive
@@ -100,17 +100,17 @@ The orchestrator handles everything automatically:
 2. **Compute waves** - Groups tasks by dependency depth
 3. **Execute waves** - Per wave:
    - Creates git worktree per task (from merged state of prior waves)
-   - Launches `ralph-runner.sh --worktree` in each worktree in parallel
+   - Launches `conclave ralph-run --worktree` in each worktree in parallel
    - Polls for completion
    - Squash-merges completed tasks in plan order
    - Re-runs tasks on merge conflicts (up to `PARALLEL_MAX_CONFLICT_RERUNS`)
-4. **Consensus review** - Runs `auto-review.sh` on all merged changes
+4. **Consensus review** - Runs `conclave auto-review` on all merged changes
 5. **Cleanup** - Removes worktrees, prints summary
 
 ### Dry Run (preview schedule)
 
 ```bash
-./skills/subagent-driven-development/parallel-runner.sh \
+./skills/subagent-driven-development/conclave parallel-run \
     docs/plans/YYYY-MM-DD-feature.md \
     --dry-run
 ```
@@ -122,7 +122,7 @@ For tightly-coupled tasks or debugging, run tasks one at a time:
 ```bash
 TASK_SPEC=$(mktemp --suffix=.md)
 # Write task spec...
-./skills/ralph-loop/ralph-runner.sh "task-name" "$TASK_SPEC" --non-interactive -d "$(pwd)"
+./skills/ralph-loop/conclave ralph-run "task-name" "$TASK_SPEC" --non-interactive -d "$(pwd)"
 ```
 
 ## Example Workflow
@@ -240,7 +240,7 @@ Environment variables for ralph-loop (per-task):
 - Start implementation on main/master branch without explicit user consent
 - Skip consensus review after ralph-loop succeeds
 - Proceed with High Priority consensus issues
-- Run parallel-runner.sh without worktree isolation
+- Run conclave parallel-run without worktree isolation
 - Merge task branches out of plan order
 - Create dependent task worktrees from base branch (must use merged state)
 - Manually intervene during ralph-loop execution
@@ -270,7 +270,7 @@ Environment variables for ralph-loop (per-task):
 
 ## Files
 
-- `./parallel-runner.sh` - Main orchestrator for parallel execution
+- `./conclave parallel-run` - Main orchestrator for parallel execution
 - `./lib/parse-plan.sh` - Plan parser (tasks, dependencies, waves)
 - `./lib/scheduler.sh` - Wave-based task scheduler
 - `./lib/merge.sh` - Squash-merge with conflict detection

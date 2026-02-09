@@ -161,7 +161,7 @@ Before implementing fix, validate the traced causal path with multiple agents.
 
 2. **Invoke consensus:**
    ```bash
-   skills/multi-agent-consensus/consensus-synthesis.sh --mode=general-prompt \
+   conclave consensus --mode=general-prompt \
      --prompt="Review this causal trace from symptom to root trigger. Is the traced path complete and correct? Are there missing causal links? Could the symptom have a different root trigger? Rate your confidence in this trace as STRONG/MODERATE/WEAK." \
      --context="$TRACE_CONTEXT"
    ```

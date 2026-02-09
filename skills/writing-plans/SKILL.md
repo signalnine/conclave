@@ -105,7 +105,7 @@ git commit -m "feat: add specific feature"
 PLAN_FILE="docs/plans/YYYY-MM-DD-<feature-name>.md"
 PLAN_TEXT=$(cat "$PLAN_FILE")
 
-skills/multi-agent-consensus/consensus-synthesis.sh --mode=general-prompt \
+conclave consensus --mode=general-prompt \
   --prompt="Review this implementation plan for: 1) Architectural soundness - is the approach appropriate? 2) Risk assessment - what could go wrong? 3) Scope validation - is this over/under-engineered? 4) Missing steps - are there gaps in the plan? Rate each concern as HIGH/MEDIUM/LOW priority." \
   --context="$PLAN_TEXT"
 ```
