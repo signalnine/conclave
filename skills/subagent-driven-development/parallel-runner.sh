@@ -236,7 +236,8 @@ for ((wave=0; wave<=MAX_WAVE; wave++)); do
 
             local pid="${SCHED_TASK_PID[$task_id]}"
             if ! kill -0 "$pid" 2>/dev/null; then
-                wait "$pid" 2>/dev/null && local_exit=0 || local_exit=$?
+                wait "$pid" 2>/dev/null
+                local_exit=$?
 
                 if [ $local_exit -eq 0 ]; then
                     echo "[WAVE $wave] Task $task_id COMPLETED"
