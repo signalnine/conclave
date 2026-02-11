@@ -59,18 +59,15 @@ func runAutoReview(cmd *cobra.Command, args []string) error {
 
 	fmt.Fprintf(os.Stderr, "Auto-review: base=%s head=%s\n", baseSHA[:8], headSHA[:8])
 
-	// Delegate to consensus command
+	// Set flags on consensus command and run it directly
 	planFile, _ := cmd.Flags().GetString("plan-file")
-	consensusArgs := []string{
-		"--mode=code-review",
-		"--base-sha=" + baseSHA,
-		"--head-sha=" + headSHA,
-		"--description=" + description,
-	}
+	consensusCmd.Flags().Set("mode", "code-review")
+	consensusCmd.Flags().Set("base-sha", baseSHA)
+	consensusCmd.Flags().Set("head-sha", headSHA)
+	consensusCmd.Flags().Set("description", description)
 	if planFile != "" {
-		consensusArgs = append(consensusArgs, "--plan-file="+planFile)
+		consensusCmd.Flags().Set("plan-file", planFile)
 	}
 
-	consensusCmd.SetArgs(consensusArgs)
-	return consensusCmd.RunE(consensusCmd, nil)
+	return runConsensus(consensusCmd, nil)
 }
