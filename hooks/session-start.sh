@@ -44,7 +44,7 @@ cat <<EOF
 {
   "hookSpecificOutput": {
     "hookEventName": "SessionStart",
-    "additionalContext": "<EXTREMELY_IMPORTANT>\nYou have conclave.\n\n**Below is the full content of your 'conclave:using-conclave' skill - your introduction to using skills. For all other skills, use the 'Skill' tool:**\n\n${using_conclave_escaped}\n\n${warning_escaped}\n</EXTREMELY_IMPORTANT>"
+    "additionalContext": "<EXTREMELY_IMPORTANT>\nYou have conclave.\n\n**The conclave CLI binary is at: \`${PLUGIN_ROOT}/conclave\`** — always use this full path when running conclave commands.\n\n**Below is the full content of your 'conclave:using-conclave' skill - your introduction to using skills. For all other skills, use the 'Skill' tool:**\n\n${using_conclave_escaped}\n\n${warning_escaped}\n</EXTREMELY_IMPORTANT>"
   }
 }
 EOF

@@ -29,11 +29,14 @@ func SessionStart(pluginRoot string) (string, error) {
 		}
 	}
 
+	binaryPath := filepath.Join(pluginRoot, "conclave")
+
 	ctx := fmt.Sprintf("<EXTREMELY_IMPORTANT>\nYou have conclave.\n\n"+
+		"**The conclave CLI binary is at: `%s`** — always use this full path when running conclave commands.\n\n"+
 		"**Below is the full content of your 'conclave:using-conclave' skill - "+
 		"your introduction to using skills. For all other skills, use the 'Skill' tool:**\n\n"+
 		"%s\n\n%s\n</EXTREMELY_IMPORTANT>",
-		strings.TrimSpace(string(content)), warning)
+		binaryPath, strings.TrimSpace(string(content)), warning)
 
 	output := map[string]any{
 		"hookSpecificOutput": map[string]any{

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -34,6 +35,12 @@ func TestSessionStart_OutputsValidJSON(t *testing.T) {
 	ctx, ok := hookOutput["additionalContext"].(string)
 	if !ok || ctx == "" {
 		t.Error("missing additionalContext")
+	}
+
+	// Should contain the binary path
+	expectedPath := filepath.Join(dir, "conclave")
+	if !strings.Contains(ctx, expectedPath) {
+		t.Errorf("additionalContext should contain binary path %q", expectedPath)
 	}
 }
 
