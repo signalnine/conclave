@@ -1,13 +1,18 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
+	"time"
 
+	"github.com/signalnine/conclave/internal/bus"
 	gitpkg "github.com/signalnine/conclave/internal/git"
 	"github.com/signalnine/conclave/internal/parallel"
 	"github.com/signalnine/conclave/internal/plan"
+	"github.com/signalnine/conclave/internal/ralph"
 	"github.com/spf13/cobra"
 )
 
@@ -68,11 +73,28 @@ func runParallelRun(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
+	// Create bus directory for cross-task communication
+	baseDir, _ := os.Getwd()
+	busDir := filepath.Join(baseDir, ".conclave", "bus")
+	if err := os.MkdirAll(busDir, 0755); err != nil {
+		return fmt.Errorf("creating bus directory: %w", err)
+	}
+	defer os.RemoveAll(busDir)
+
+	// Write PID file for stale detection
+	_ = os.WriteFile(filepath.Join(busDir, ".pid"), []byte(fmt.Sprintf("%d", os.Getpid())), 0644)
+
 	g := gitpkg.New(".")
 	sched := parallel.NewScheduler(tasks, waves, maxConc)
 
 	for wave := 0; wave < waveCount; wave++ {
 		fmt.Fprintf(os.Stderr, "\n=== Wave %d/%d ===\n", wave+1, waveCount)
+
+		// Create wave-specific board directory
+		waveBusDir := filepath.Join(busDir, fmt.Sprintf("wave-%d", wave))
+		if err := os.MkdirAll(waveBusDir, 0755); err != nil {
+			fmt.Fprintf(os.Stderr, "  Warning: could not create wave bus dir: %v\n", err)
+		}
 
 		ready := sched.GetReadyTasks(wave)
 		if len(ready) == 0 {
@@ -80,10 +102,17 @@ func runParallelRun(cmd *cobra.Command, args []string) error {
 			continue
 		}
 
+		waveTopic := fmt.Sprintf("parallel.wave-%d.board", wave)
+
 		for _, taskID := range ready {
 			fmt.Fprintf(os.Stderr, "  Task %d: launching...\n", taskID)
 			sched.MarkRunning(taskID, 0, "")
-			// In a full implementation, this would create worktrees and run claude -p
+			// In a full implementation, this would create worktrees and run ralph-run
+			// with bus flags:
+			//   --board-dir <waveBusDir>
+			//   --board-topic <waveTopic>
+			//   --task-id task-<taskID>
+			_ = waveTopic // used when launching ralph-run subprocesses
 			// For now, mark as completed since the actual execution requires claude CLI
 			sched.MarkDone(taskID, parallel.StatusCompleted)
 		}
@@ -103,6 +132,31 @@ func runParallelRun(cmd *cobra.Command, args []string) error {
 				branch := fmt.Sprintf("task-%d", id)
 				if err := parallel.MergeTaskBranch(g, branch, id, taskTitle); err != nil {
 					fmt.Fprintf(os.Stderr, "  Warning: merge failed for task %d: %v\n", id, err)
+				}
+			}
+		}
+
+		// After wave completes, summarize board for next wave
+		hasMoreWaves := wave+1 < waveCount
+		if hasMoreWaves {
+			entries, _ := ralph.ReadBoard(waveBusDir, 10)
+			if len(entries) > 0 {
+				nextWaveBusDir := filepath.Join(busDir, fmt.Sprintf("wave-%d", wave+1))
+				if err := os.MkdirAll(nextWaveBusDir, 0755); err == nil {
+					fileBus, busErr := bus.NewFileBus(nextWaveBusDir, 100*time.Millisecond, time.Second)
+					if busErr == nil {
+						summary := ralph.FormatBoardContext(entries)
+						payload, _ := json.Marshal(struct {
+							Text string `json:"text"`
+						}{Text: summary})
+						nextTopic := fmt.Sprintf("parallel.wave-%d.board", wave+1)
+						_ = fileBus.Publish(nextTopic, bus.Message{
+							Type:    "board.context",
+							Sender:  "orchestrator",
+							Payload: json.RawMessage(payload),
+						})
+						fileBus.Close()
+					}
 				}
 			}
 		}
