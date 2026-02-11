@@ -203,6 +203,29 @@ The orchestrator summarizes each wave's board for the next wave, giving later ta
 | `--board-topic` | ralph-run | Topic for board messages |
 | `--task-id` | ralph-run | Task identifier for messages |
 
+## Context Management
+
+Long-running workflows (multi-wave execution, brainstorming sessions, debugging marathons) can exhaust the context window. Conclave skills include `/compact` guidance at phase transition points to proactively reclaim context before it becomes a problem.
+
+**Skills with built-in compact checkpoints:**
+
+| Skill | Compact Points |
+|-------|---------------|
+| `subagent-driven-development` | Between waves, before consensus review, before branch finish |
+| `executing-plans` | Between batches, before branch completion |
+| `brainstorming` | Before design presentation, before validation, before implementation handoff |
+| `writing-plans` | Before consensus validation |
+| `finishing-a-development-branch` | Before presenting merge options |
+| `systematic-debugging` | Before implementing fix after investigation |
+
+Each compact point includes a template with the right focus summary so compaction preserves what matters for the next phase. For example, between waves in subagent-driven-development:
+
+```
+/compact Completed waves 0-2. Tasks done: 1-5. Tasks remaining: 6-8. Next wave: tasks 6, 7.
+```
+
+The focus summary tells `/compact` what to prioritize when summarizing the conversation, ensuring later phases have clean context with the right details preserved.
+
 ## Prose Linter
 
 Validate SKILL.md files and plan filenames against authoring standards:
