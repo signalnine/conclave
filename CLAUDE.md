@@ -9,6 +9,9 @@ Conclave is a Claude Code plugin that provides a multi-agent consensus developme
 ## Running Tests
 
 ```bash
+# Go unit tests (all packages including proxy, consensus, plan, etc.)
+go test ./... -race
+
 # Multi-agent consensus tests (33 tests, runs fast, no API keys needed for most)
 ./skills/multi-agent-consensus/test-consensus-synthesis.sh
 
@@ -86,6 +89,23 @@ The parallel task runner system:
 ### Ralph Loop (`skills/ralph-loop/`)
 
 Autonomous iteration wrapper for tasks. Runs `claude -p` in fresh context per retry (max 5 attempts). Includes stuck detection, failure branching (`wip/ralph-fail-*`), and per-gate timeouts. State tracked in `.ralph_state.json` and `.ralph_context.md`.
+
+### Prose Linter (`internal/lint/`)
+
+SKILL.md validator (`conclave lint`) checking frontmatter (required fields, schema), description rules ("Use when" prefix, length limits), skill naming (lowercase-hyphenated), word count, cross-reference validation (with fenced code block awareness), duplicate name detection, and `docs/plans/` filename format. Human-readable and `--json` output. Exit 1 on errors, 0 on clean/warnings-only.
+
+### Token-Counting Proxy (`internal/proxy/`)
+
+Transparent HTTP reverse proxy (`conclave proxy`) that sits between Claude Code and `api.anthropic.com`, counting input/output tokens from every API response. Uses `httputil.ReverseProxy` with a `ModifyResponse` hook for non-streaming JSON and an `io.Pipe`-based SSE scanner for streaming responses. Atomic counters for thread-safe accumulation. Prints per-request log lines to stderr and a formatted summary on SIGINT/SIGTERM shutdown.
+
+Usage:
+```bash
+# Terminal 1: start proxy
+conclave proxy --port 8199
+# Terminal 2: point Claude Code at the proxy
+ANTHROPIC_BASE_URL=http://localhost:8199 claude
+# Ctrl+C the proxy when done to see token summary
+```
 
 ### Shared Library (`lib/`)
 

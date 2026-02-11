@@ -164,6 +164,73 @@ Fetch and follow instructions from https://raw.githubusercontent.com/signalnine/
 - **writing-skills** - Create new skills following best practices (includes testing methodology)
 - **using-conclave** - Introduction to the skills system
 
+## Prose Linter
+
+Validate SKILL.md files and plan filenames against authoring standards:
+
+```bash
+# Lint everything (skills/ + docs/plans/)
+conclave lint
+
+# Lint specific directory or file
+conclave lint skills/brainstorming/
+conclave lint skills/brainstorming/SKILL.md
+
+# JSON output for CI
+conclave lint --json
+
+# Custom word count threshold
+conclave lint --word-limit 1000
+```
+
+**Rules checked:**
+
+| Rule | Severity | What it checks |
+|------|----------|----------------|
+| `frontmatter-required` | error | YAML frontmatter with `name` and `description` |
+| `frontmatter-schema` | error | No unexpected frontmatter fields |
+| `description-prefix` | error | Description starts with "Use when" |
+| `description-length` | error | Description under 1024 characters |
+| `skill-naming` | error | Lowercase alphanumeric with hyphens |
+| `cross-ref-valid` | error | `conclave:` cross-references resolve |
+| `duplicate-name` | error | No two skills share a name |
+| `plan-filename` | error | `YYYY-MM-DD-<topic>-{design,implementation}.md` |
+| `description-verbose` | warning | Description over 200 characters |
+| `word-count` | warning | Body exceeds word limit (default 500) |
+
+Exit code 0 = clean (or warnings only), exit code 1 = errors found.
+
+## Token-Counting Proxy
+
+Conclave includes a transparent reverse proxy that sits between Claude Code and the Anthropic API, counting input/output tokens per session for cost estimation and complexity budgeting.
+
+```bash
+# Terminal 1: start the proxy
+conclave proxy --port 8199
+
+# Terminal 2: point Claude Code at the proxy
+ANTHROPIC_BASE_URL=http://localhost:8199 claude
+```
+
+Every API request is logged to stderr with model and token counts. When you Ctrl+C the proxy, it prints a session summary:
+
+```
+Session summary:
+  Requests:             47
+  Input tokens:         128,432
+  Output tokens:        31,208
+  Cache creation:       5,000
+  Cache read:           10,000
+  Total tokens:         159,640
+```
+
+Handles both streaming (SSE) and non-streaming responses. The proxy is fully transparent — all headers, bodies, and status codes pass through unmodified.
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--port` | 8199 | Port to listen on |
+| `--target` | `https://api.anthropic.com` | Target API URL |
+
 ## Philosophy
 
 - **Test-Driven Development** - Write tests first, always
