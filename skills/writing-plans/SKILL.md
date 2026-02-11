@@ -97,6 +97,16 @@ git commit -m "feat: add specific feature"
 - Include Dependencies field for every task (required for parallel execution)
 - DRY, YAGNI, TDD, frequent commits
 
+## Context Management
+
+**Compact before validation** — plan writing involves extensive codebase exploration:
+
+```
+/compact Plan written to [file path]. [N] tasks, [M] waves. Ready for consensus validation.
+```
+
+**Why:** Writing a plan requires reading many files, understanding architecture, and drafting detailed task specs. Compacting before validation ensures the consensus call and execution handoff have clean context.
+
 ## Plan Validation with Multi-Agent Consensus
 
 **Before offering execution options**, validate the plan with multi-agent consensus:

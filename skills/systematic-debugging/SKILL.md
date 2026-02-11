@@ -237,6 +237,16 @@ Consensus: High confidence in root cause. All reviewers agree.
 Proceed to Phase 4: Implementation
 ```
 
+### Context Management
+
+**Compact before implementation** if investigation was lengthy:
+
+```
+/compact Debugging [issue]. Root cause: [hypothesis]. Evidence: [key findings]. Consensus: [confidence level]. Ready to implement fix.
+```
+
+**Why:** Investigation phases generate extensive output from error traces, code reading, and consensus calls. Compacting before the fix ensures implementation has focused context on the confirmed root cause rather than discarded hypotheses.
+
 ### Phase 4: Implementation
 
 **Fix the root cause, not the symptom:**

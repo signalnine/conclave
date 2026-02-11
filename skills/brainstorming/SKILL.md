@@ -208,6 +208,25 @@ Write checkpoint after each decision using the Write tool.
 
 **Cleanup:** Delete checkpoint file when design is complete and saved to final document.
 
+## Context Management
+
+**Compact at phase transitions** to preserve context for later phases:
+
+- **Before design presentation** (after all questions answered): Run `/compact` with decisions summary:
+  ```
+  /compact Brainstorming [topic]. Decisions made: [list key decisions]. Mode: [interactive/autopilot]. Ready to present design.
+  ```
+- **Before consensus validation** (after design written): Run `/compact` with design file reference:
+  ```
+  /compact Design written to [file path]. Ready for multi-agent validation.
+  ```
+- **Before implementation handoff** (after validation): Run `/compact` with final state:
+  ```
+  /compact Design validated. File: [path]. Ready for implementation setup.
+  ```
+
+**Why:** Brainstorming accumulates substantial context from questions, consensus calls, and design iterations. Compacting before validation ensures the consensus agents get clean, focused context.
+
 ## After the Design
 
 **For Autopilot Mode - Summarize Decisions:**

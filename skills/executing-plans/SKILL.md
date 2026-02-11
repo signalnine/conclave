@@ -56,8 +56,12 @@ When batch complete and consensus reviewed:
 ### Step 5: Continue
 Based on feedback:
 - Apply changes if needed
+- **Compact before next batch**: Run `/compact` to reclaim context:
+  ```
+  /compact Completed batch [N]: tasks [list]. Consensus: [summary]. Feedback applied: [changes]. Remaining tasks: [list]. Next batch: tasks [list].
+  ```
 - Execute next batch
-- Repeat Steps 2-4 until complete
+- Repeat Steps 2-5 until complete
 
 ### Step 6: Complete Development
 
@@ -84,6 +88,15 @@ After all tasks complete and verified:
 
 **Don't force through blockers** - stop and ask.
 
+## Context Management
+
+**Compact between batches** to prevent context exhaustion:
+
+- **After each batch report** (Step 4 complete, before Step 5): Best time to compact — user feedback creates a natural checkpoint
+- **Before final branch completion** (Step 6): Compact with summary of all completed work
+
+**Why:** Each batch generates code output, test results, and consensus reviews. Without compaction, later batches run in degraded context and risk losing important details.
+
 ## Remember
 - Review plan critically first
 - Follow plan steps exactly
@@ -91,7 +104,7 @@ After all tasks complete and verified:
 - Run consensus review after each batch
 - Fix High Priority consensus issues before reporting
 - Reference skills when plan says to
-- Between batches: just report and wait
+- Between batches: compact context, then report and wait
 - Stop when blocked, don't guess
 - Never start implementation on main/master branch without explicit user consent
 

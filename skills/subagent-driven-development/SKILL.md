@@ -82,6 +82,25 @@ digraph process {
 }
 ```
 
+## Context Management
+
+**Compact between waves** to prevent context exhaustion during long executions:
+
+- **After each wave completes** (merges done, before next wave): Run `/compact` with focus on the current state:
+  ```
+  /compact Completed waves 0-N. Tasks done: [list]. Tasks remaining: [list]. Current branch state: [summary]. Next wave: [tasks].
+  ```
+- **Before final consensus review**: Run `/compact` with focus on what was built:
+  ```
+  /compact All waves complete. Implemented: [summary of all tasks]. Ready for consensus review.
+  ```
+- **Before finishing-a-development-branch**: Run `/compact` with focus on merge readiness:
+  ```
+  /compact Implementation complete. [N] tasks done, [M] failed. Ready for branch completion.
+  ```
+
+**Why:** Each wave generates substantial output from task agents, merge operations, and conflict resolution. Without compaction, later waves run in degraded context.
+
 ## Task Execution
 
 ### Parallel Execution (default)

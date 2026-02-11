@@ -65,6 +65,16 @@ Recommend addressing before merge. Would you like to:
 **If no issues or only Consider tier:**
 - Continue to Step 3
 
+### Context Management
+
+**Compact before presenting options** if this skill follows a long session (e.g., after subagent-driven-development or executing-plans):
+
+```
+/compact Branch [name] ready for completion. Tests: passing. Consensus review: [summary]. Ready to present merge options.
+```
+
+**Why:** This skill is typically called at the end of a long implementation session. Compacting ensures the merge/PR workflow has clean context.
+
 ### Step 3: Determine Base Branch
 
 ```bash
