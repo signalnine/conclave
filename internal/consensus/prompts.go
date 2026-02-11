@@ -146,3 +146,50 @@ Be direct. Disagreement is valuable - report it clearly.
 `)
 	return b.String()
 }
+
+// BuildThesisSummaryPrompt creates a prompt asking an agent to summarize its analysis.
+func BuildThesisSummaryPrompt(analysis string) string {
+	return fmt.Sprintf(`Summarize your analysis below in exactly 2-3 sentences. Capture your main position and key findings. Be specific and direct.
+
+Your analysis:
+%s`, analysis)
+}
+
+// BuildDebatePrompt creates a prompt for the debate round, showing all agents' thesis summaries.
+func BuildDebatePrompt(theses map[string]string, selfAgent string) string {
+	var b strings.Builder
+	b.WriteString("Three agents analyzed this problem independently. Their positions:\n\n")
+	for agent, thesis := range theses {
+		b.WriteString(fmt.Sprintf("- %s: %q\n", agent, thesis))
+	}
+	b.WriteString("\nIdentify specific points of disagreement, factual errors, or missing considerations in the other agents' analyses. Be concise and direct. Focus on substance, not style.")
+	return b.String()
+}
+
+// BuildDebateChairmanPrompt creates the chairman prompt that includes both original analyses and rebuttals.
+func BuildDebateChairmanPrompt(originalPrompt string, analyses []AgentResult, rebuttals []AgentResult) string {
+	var b strings.Builder
+	b.WriteString("You are synthesizing a multi-agent analysis that included a debate round.\n\n")
+	b.WriteString(fmt.Sprintf("Original question: %s\n\n", originalPrompt))
+
+	b.WriteString("## Original Analyses\n\n")
+	for _, r := range analyses {
+		if r.Err == nil {
+			b.WriteString(fmt.Sprintf("--- %s Analysis ---\n%s\n\n", r.Agent, r.Output))
+		}
+	}
+
+	b.WriteString("## Rebuttals (after seeing each other's analyses)\n\n")
+	for _, r := range rebuttals {
+		if r.Err == nil {
+			b.WriteString(fmt.Sprintf("--- %s Rebuttal ---\n%s\n\n", r.Agent, r.Output))
+		}
+	}
+
+	b.WriteString("Synthesize all findings. Pay special attention to:\n")
+	b.WriteString("- Points where agents changed their position after debate — convergence after challenge is a strong signal\n")
+	b.WriteString("- Points where agents maintained disagreement despite rebuttals — flag these as genuinely contested\n")
+	b.WriteString("- Factual corrections made during the debate round\n\n")
+	b.WriteString("Output format:\n## Areas of Agreement\n## Areas of Disagreement\n## Confidence Level\n## Synthesized Recommendation")
+	return b.String()
+}
