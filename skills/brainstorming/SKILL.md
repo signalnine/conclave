@@ -50,6 +50,10 @@ If no checkpoint or user chooses fresh start, proceed to The Process.
 
 **Mode Selection** (after checking project context):
 
+**If `CONCLAVE_NON_INTERACTIVE=1`:** Skip mode selection, use Consensus Autopilot automatically. Announce: "Non-interactive mode: using Consensus Autopilot."
+
+Otherwise, present the choice:
+
 ```
 I'll help design this feature. Two modes available:
 

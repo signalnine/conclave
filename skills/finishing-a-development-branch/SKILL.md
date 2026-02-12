@@ -86,7 +86,9 @@ Or ask: "This branch split from main - is that correct?"
 
 ### Step 4: Present Options
 
-Present exactly these 4 options:
+**If `CONCLAVE_NON_INTERACTIVE=1`:** Skip the choice, merge locally (Option 1) automatically. Announce: "Non-interactive mode: merging to <base-branch>."
+
+Otherwise, present exactly these 4 options:
 
 ```
 Implementation complete. What would you like to do?

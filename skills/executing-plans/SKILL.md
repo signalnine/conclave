@@ -54,7 +54,10 @@ When batch complete and consensus reviewed:
 - Say: "Ready for feedback."
 
 ### Step 5: Continue
-Based on feedback:
+
+**If `CONCLAVE_NON_INTERACTIVE=1`:** Skip waiting for feedback, proceed to next batch automatically. Announce: "Non-interactive mode: proceeding to next batch." Still fix High Priority consensus issues before continuing.
+
+Otherwise, based on feedback:
 - Apply changes if needed
 - **Compact before next batch**: Run `/compact` to reclaim context:
   ```

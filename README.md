@@ -293,6 +293,21 @@ Handles both streaming (SSE) and non-streaming responses. The proxy is fully tra
 | `--port` | 8199 | Port to listen on |
 | `--target` | `https://api.anthropic.com` | Target API URL |
 
+## Non-Interactive Mode
+
+Set `CONCLAVE_NON_INTERACTIVE=1` to skip all interactive decision points. Skills automatically choose sensible defaults and announce each choice:
+
+```bash
+CONCLAVE_NON_INTERACTIVE=1 claude
+```
+
+| Skill | Decision Point | Default |
+|-------|---------------|---------|
+| `brainstorming` | Interactive vs Autopilot | Autopilot |
+| `writing-plans` | Subagent-driven vs Parallel session | Subagent-driven |
+| `executing-plans` | Wait for batch feedback | Continue (still fixes High Priority issues) |
+| `finishing-a-development-branch` | Merge/PR/Keep/Discard | Merge locally |
+
 ## Philosophy
 
 - **Test-Driven Development** - Write tests first, always

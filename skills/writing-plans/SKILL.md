@@ -132,7 +132,9 @@ conclave consensus --mode=general-prompt \
 
 ## Execution Handoff
 
-After validation, offer execution choice:
+**If `CONCLAVE_NON_INTERACTIVE=1`:** Skip the choice, use Subagent-Driven automatically. Announce: "Non-interactive mode: using subagent-driven execution."
+
+Otherwise, offer execution choice:
 
 **"Plan complete and saved to `docs/plans/<filename>.md`. Two execution options:**
 
