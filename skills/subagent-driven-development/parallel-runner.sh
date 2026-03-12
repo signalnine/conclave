@@ -234,7 +234,7 @@ for ((wave=0; wave<=MAX_WAVE; wave++)); do
         for task_id in "${TASK_IDS[@]}"; do
             [ "${SCHED_TASK_STATUS[$task_id]}" != "RUNNING" ] && continue
 
-            local pid="${SCHED_TASK_PID[$task_id]}"
+            pid="${SCHED_TASK_PID[$task_id]}"
             if ! kill -0 "$pid" 2>/dev/null; then
                 wait "$pid" 2>/dev/null
                 local_exit=$?
