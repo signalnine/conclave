@@ -118,13 +118,13 @@ func TestDefaults(t *testing.T) {
 		t.Setenv(k, "")
 	}
 	cfg := Load()
-	if cfg.AnthropicModel != "claude-opus-4-5-20251101" {
+	if cfg.AnthropicModel != "claude-sonnet-4-6-20260320" {
 		t.Errorf("AnthropicModel = %q", cfg.AnthropicModel)
 	}
-	if cfg.GeminiModel != "gemini-3-pro-preview" {
+	if cfg.GeminiModel != "gemini-2.5-pro" {
 		t.Errorf("GeminiModel = %q", cfg.GeminiModel)
 	}
-	if cfg.OpenAIModel != "gpt-5.1-codex-max" {
+	if cfg.OpenAIModel != "o3" {
 		t.Errorf("OpenAIModel = %q", cfg.OpenAIModel)
 	}
 	if cfg.Stage1Timeout != 60 {
