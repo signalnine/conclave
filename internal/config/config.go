@@ -61,8 +61,8 @@ func Load() *Config {
 
 		AnthropicModel:     envOr("ANTHROPIC_MODEL", "claude-sonnet-4-6-20260320"),
 		AnthropicMaxTokens: envInt("ANTHROPIC_MAX_TOKENS", 16000),
-		GeminiModel:        envOr("GEMINI_MODEL", "gemini-2.5-pro"),
-		OpenAIModel:        envOr("OPENAI_MODEL", "o3"),
+		GeminiModel:        envOr("GEMINI_MODEL", "gemini-3.1-pro-preview"),
+		OpenAIModel:        envOr("OPENAI_MODEL", "gpt-5.4"),
 		OpenAIMaxTokens:    envInt("OPENAI_MAX_TOKENS", 16000),
 
 		Stage1Timeout: envInt("CONSENSUS_STAGE1_TIMEOUT", 60),
@@ -71,8 +71,8 @@ func Load() *Config {
 		OpenRouterAPIKey:      os.Getenv("OPENROUTER_API_KEY"),
 		OpenRouterBaseURL:    envOr("OPENROUTER_BASE_URL", "https://openrouter.ai/api"),
 		OpenRouterClaudeModel: envOr("OPENROUTER_CLAUDE_MODEL", "anthropic/claude-sonnet-4.6"),
-		OpenRouterGeminiModel: envOr("OPENROUTER_GEMINI_MODEL", "google/gemini-2.5-pro"),
-		OpenRouterCodexModel:  envOr("OPENROUTER_CODEX_MODEL", "openai/o3"),
+		OpenRouterGeminiModel: envOr("OPENROUTER_GEMINI_MODEL", "google/gemini-3.1-pro-preview"),
+		OpenRouterCodexModel:  envOr("OPENROUTER_CODEX_MODEL", "openai/gpt-5.4"),
 
 		AnthropicBaseURL: envOr("ANTHROPIC_BASE_URL", "https://api.anthropic.com"),
 		GeminiBaseURL:    envOr("GEMINI_BASE_URL", "https://generativelanguage.googleapis.com"),

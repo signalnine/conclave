@@ -143,7 +143,7 @@ func (a *CodexAgent) Available() bool { return a.cfg.OpenAIAPIKey != "" }
 
 var codexModelRe = regexp.MustCompile(`^gpt-5.*-codex`)
 var reasoningModelRe = regexp.MustCompile(`^(o1|o3|o4)`)
-var chatModelRe = regexp.MustCompile(`^(gpt-4|gpt-3\.5-turbo|o1|o3|o4)`)
+var chatModelRe = regexp.MustCompile(`^(gpt-[345]|o1|o3|o4)`)
 
 func (a *CodexAgent) Run(ctx context.Context, prompt string) (string, error) {
 	base := strings.TrimRight(a.cfg.OpenAIBaseURL, "/")

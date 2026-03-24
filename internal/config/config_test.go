@@ -121,10 +121,10 @@ func TestDefaults(t *testing.T) {
 	if cfg.AnthropicModel != "claude-sonnet-4-6-20260320" {
 		t.Errorf("AnthropicModel = %q", cfg.AnthropicModel)
 	}
-	if cfg.GeminiModel != "gemini-2.5-pro" {
+	if cfg.GeminiModel != "gemini-3.1-pro-preview" {
 		t.Errorf("GeminiModel = %q", cfg.GeminiModel)
 	}
-	if cfg.OpenAIModel != "o3" {
+	if cfg.OpenAIModel != "gpt-5.4" {
 		t.Errorf("OpenAIModel = %q", cfg.OpenAIModel)
 	}
 	if cfg.Stage1Timeout != 60 {
