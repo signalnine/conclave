@@ -71,6 +71,26 @@ The framework uses a two-stage process:
 - **Single reviewer** → Consider, but use judgment
 - Push back if feedback is wrong (with technical reasoning)
 
+## Second-Pass Review (State-Heavy Tasks Only)
+
+After addressing first-review findings on a state-heavy task (see using-conclave skill),
+run a second review. This review must be independent — do not rubber-stamp the first.
+
+Dispatch a second `conclave:code-reviewer` subagent with this focus prompt:
+
+```
+Review this implementation with fresh eyes, specifically for:
+1. State consistency: Can any operation leave the system in an invalid state?
+2. Constraint propagation: When one value changes, are all dependent values updated?
+3. Race conditions: Can concurrent operations produce inconsistent results?
+4. Edge cases: What happens at boundaries (empty, full, overflow, underflow)?
+5. Performance invariants: Are state update paths O(n) or better? Any hidden O(n²)?
+Assume nothing from prior reviews. Ignore code style and naming — focus only on correctness.
+Verify each property by tracing through the code, not by checking review comments.
+```
+
+Address any findings, then re-verify before proceeding.
+
 ## Integration with Workflows
 
 **Subagent-Driven Development:**
