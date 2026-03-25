@@ -23,9 +23,12 @@ func TestExecuteWave_CreatesWorktrees(t *testing.T) {
 	waves := map[int]int{1: 0, 2: 0}
 	sched := NewScheduler(tasks, waves, 3)
 
-	// Use a fake command that just creates a file to prove it ran in the worktree
+	// Use a fake command that creates a file and commits in the worktree
 	cmdBuilder := func(worktree, taskSpec string, taskID int, boardDir, boardTopic string) *exec.Cmd {
-		return exec.Command("bash", "-c", fmt.Sprintf("echo 'task %d ran' > %s/proof.txt && git add -A && git commit -m 'task %d done'", taskID, worktree, taskID))
+		script := fmt.Sprintf("cd %s && echo 'task %d ran' > proof.txt && git add -A && git commit -m 'task %d done'", worktree, taskID, taskID)
+		cmd := exec.Command("bash", "-c", script)
+		cmd.Dir = worktree
+		return cmd
 	}
 
 	err := ExecuteWave(context.Background(), g, sched, tasks, 0, worktreeDir, "", cmdBuilder)

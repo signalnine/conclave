@@ -1,9 +1,11 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -96,44 +98,13 @@ func runParallelRun(cmd *cobra.Command, args []string) error {
 			fmt.Fprintf(os.Stderr, "  Warning: could not create wave bus dir: %v\n", err)
 		}
 
-		ready := sched.GetReadyTasks(wave)
-		if len(ready) == 0 {
-			fmt.Fprintln(os.Stderr, "  No ready tasks in this wave (dependencies not met)")
-			continue
+		worktreeDir := filepath.Join(baseDir, ".worktrees")
+		cmdBuilder := func(worktree, taskSpec string, taskID int, boardDir, boardTopic string) *exec.Cmd {
+			return parallel.BuildRalphCommand(worktree, taskSpec, taskID, boardDir, boardTopic)
 		}
 
-		waveTopic := fmt.Sprintf("parallel.wave-%d.board", wave)
-
-		for _, taskID := range ready {
-			fmt.Fprintf(os.Stderr, "  Task %d: launching...\n", taskID)
-			sched.MarkRunning(taskID, 0, "")
-			// In a full implementation, this would create worktrees and run ralph-run
-			// with bus flags:
-			//   --board-dir <waveBusDir>
-			//   --board-topic <waveTopic>
-			//   --task-id task-<taskID>
-			_ = waveTopic // used when launching ralph-run subprocesses
-			// For now, mark as completed since the actual execution requires claude CLI
-			sched.MarkDone(taskID, parallel.StatusCompleted)
-		}
-
-		// Merge completed tasks
-		completedIDs := sched.WaveCompletedIDs(wave)
-		for _, id := range completedIDs {
-			wt := sched.Worktree(id)
-			if wt != "" {
-				var taskTitle string
-				for _, t := range tasks {
-					if t.ID == id {
-						taskTitle = t.Title
-						break
-					}
-				}
-				branch := fmt.Sprintf("task-%d", id)
-				if err := parallel.MergeTaskBranch(g, branch, id, taskTitle); err != nil {
-					fmt.Fprintf(os.Stderr, "  Warning: merge failed for task %d: %v\n", id, err)
-				}
-			}
+		if err := parallel.ExecuteWave(context.Background(), g, sched, tasks, wave, worktreeDir, waveBusDir, cmdBuilder); err != nil {
+			fmt.Fprintf(os.Stderr, "  Wave %d error: %v\n", wave, err)
 		}
 
 		// After wave completes, summarize board for next wave
