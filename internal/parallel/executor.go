@@ -61,6 +61,10 @@ func ExecuteWave(ctx context.Context, g *gitpkg.Git, sched *Scheduler, tasks []p
 		branchName := fmt.Sprintf("task-%d-%s", taskID, slug)
 		worktreePath := filepath.Join(worktreeBaseDir, branchName)
 
+		// Clean up stale branch/worktree from previous runs
+		exec.Command("git", "-C", g.Dir, "branch", "-D", branchName).Run()
+		os.RemoveAll(worktreePath)
+
 		// Create worktree
 		if err := g.WorktreeAdd(worktreePath, branchName, headRef); err != nil {
 			fmt.Fprintf(os.Stderr, "  Task %d: worktree creation failed: %v\n", taskID, err)
