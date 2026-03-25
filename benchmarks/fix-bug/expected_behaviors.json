@@ -1,0 +1,5 @@
+{
+  "tdd_compliance": true,
+  "verification_before_commit": true,
+  "min_fix_cycles": 1
+}
