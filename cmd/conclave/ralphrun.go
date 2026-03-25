@@ -158,8 +158,17 @@ func runRalphRun(cmd *cobra.Command, args []string) error {
 			}
 		}
 
-		// All gates passed
-		fmt.Fprintln(os.Stderr, "\nAll gates passed! Task complete.")
+		// All gates passed — commit the work
+		fmt.Fprintln(os.Stderr, "\nAll gates passed! Committing...")
+		if err := g.AddAll(); err != nil {
+			fmt.Fprintf(os.Stderr, "  Warning: git add failed: %v\n", err)
+		}
+		if g.HasStagedChanges() {
+			if err := g.Commit(fmt.Sprintf("feat: %s (ralph-loop iteration %d)", stateTaskID, state.Iteration)); err != nil {
+				fmt.Fprintf(os.Stderr, "  Warning: git commit failed: %v\n", err)
+			}
+		}
+		fmt.Fprintln(os.Stderr, "Task complete.")
 		return nil
 	}
 }
