@@ -159,8 +159,16 @@ func RunBenchmark(ctx context.Context, bench Benchmark, skillText string, timeou
 	agentCmd := exec.CommandContext(cmdCtx, cmdArgs[0], cmdArgs[1:]...)
 	agentCmd.Dir = workDir
 	agentCmd.Env = filterEnv()
+	// Capture stdout to NDJSON output file (stream-json goes to stdout)
+	outFile, err := os.Create(outputPath)
+	if err != nil {
+		return nil, fmt.Errorf("creating output file: %w", err)
+	}
+	agentCmd.Stdout = outFile
+	agentCmd.Stderr = os.Stderr
 	// Errors from the agent are not fatal — we still analyze what happened
 	_ = agentCmd.Run()
+	outFile.Close()
 
 	// Parse NDJSON output
 	trace, err := analyze.ParseTrace(outputPath)
@@ -247,13 +255,17 @@ func CheckExpectations(actual analyze.BehaviorProfile, expected ExpectedBehavior
 }
 
 // DefaultCmdBuilder returns a CmdBuilder that invokes `claude -p` with
-// --output-format stream-json, filtering the CLAUDECODE env var.
+// --output-format stream-json. The prompt is written to a temp file and
+// passed via stdin to avoid argument length limits.
 func DefaultCmdBuilder() CmdBuilder {
 	return func(workDir, outputPath, prompt string) []string {
+		// Write prompt to a temp file so we can pipe it via stdin
+		promptFile := filepath.Join(workDir, ".microbench-prompt.txt")
+		os.WriteFile(promptFile, []byte(prompt), 0644)
+		// Use bash -c to pipe the prompt file to claude
 		return []string{
-			"claude", "-p", prompt,
-			"--output-format", "stream-json",
-			"--output", outputPath,
+			"bash", "-c",
+			fmt.Sprintf("cat %q | claude -p --output-format stream-json --verbose --permission-mode bypassPermissions", promptFile),
 		}
 	}
 }
