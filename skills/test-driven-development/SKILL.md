@@ -28,6 +28,23 @@ Write the test first. Watch it fail. Write minimal code to pass.
 
 Thinking "skip TDD just this once"? Stop. That's rationalization.
 
+## Task Classification
+
+Before starting, classify the task:
+
+**Standard tasks** (single feature, bug fix, focused change): Follow the full Red-Green-Refactor cycle below. No exceptions.
+
+**Marathon tasks** (multi-step, sequential, 3+ distinct sub-features): Use the Iterative Verification pattern instead:
+1. Implement one sub-feature at a time
+2. After each sub-feature: run tests, fix failures, move on
+3. Do NOT write all tests upfront — test each piece as you build it
+4. Target ~3 verification runs total, not one per line of code
+5. After all sub-features: run full verification suite, review diff, commit
+
+Signs of a marathon task: "implement X, then add Y, then add Z", multiple independent features in one prompt, tasks that would take 15+ minutes.
+
+**Why:** Benchmark data (676 trials) shows strict TDD hurts on marathon tasks (-3.8pp) by causing thrashing (5+ fix cycles). Iterative verification produces better outcomes: fewer wasted cycles, faster completion, and higher completion-gate compliance.
+
 ## The Iron Law
 
 ```
@@ -338,6 +355,12 @@ Before marking work complete:
 - [ ] Edge cases and errors covered
 
 Can't check all boxes? You skipped TDD. Start over.
+
+## Iteration Guidance
+
+**Target 3 test runs.** If tests pass on the third run, move on to the next feature. More than 5 test runs on the same feature means you're stuck — step back and rethink your approach.
+
+**Target 1-2 fix cycles** (test fails → edit code → test passes). Zero cycles means you didn't iterate. Three or more means you're fighting the design.
 
 ## Completion Gate
 
