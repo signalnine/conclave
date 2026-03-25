@@ -69,16 +69,15 @@ func ExecuteWave(ctx context.Context, g *gitpkg.Git, sched *Scheduler, tasks []p
 			continue
 		}
 
-		// Configure git in worktree
+		// Configure git identity in worktree
 		wtGit := gitpkg.New(worktreePath)
-		configCmds := [][]string{
-			{"config", "user.email", "conclave@parallel"},
-			{"config", "user.name", "Conclave Parallel Runner"},
+		for _, args := range [][]string{
+			{"-C", worktreePath, "config", "user.email", "conclave@parallel"},
+			{"-C", worktreePath, "config", "user.name", "Conclave Parallel Runner"},
+		} {
+			exec.Command("git", args...).Run() // best-effort
 		}
-		for _, args := range configCmds {
-			exec.Command("git", append(args)...).Run() // best-effort
-			_ = wtGit
-		}
+		_ = wtGit
 
 		fmt.Fprintf(os.Stderr, "  Task %d: launching in %s\n", taskID, branchName)
 		sched.MarkRunning(taskID, 0, worktreePath)
