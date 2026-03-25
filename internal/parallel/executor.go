@@ -158,7 +158,15 @@ func BuildRalphCommand(worktree, taskSpec string, taskID int, boardDir, boardTop
 
 	cmd := exec.CommandContext(context.Background(), conclaveExe, args...)
 	cmd.Dir = worktree
-	cmd.Env = append(os.Environ(), "CONCLAVE_NON_INTERACTIVE=1")
+	// Filter out CLAUDECODE env var to allow nested claude -p invocations
+	var env []string
+	for _, e := range os.Environ() {
+		if !strings.HasPrefix(e, "CLAUDECODE=") {
+			env = append(env, e)
+		}
+	}
+	env = append(env, "CONCLAVE_NON_INTERACTIVE=1")
+	cmd.Env = env
 	return cmd
 }
 
