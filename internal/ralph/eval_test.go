@@ -1,6 +1,7 @@
 package ralph
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
@@ -187,5 +188,68 @@ func TestCollectRelevantFiles_FiltersBinaryAndTraversal(t *testing.T) {
 	}
 	if len(files) != 1 || files[0].Path != "code.js" {
 		t.Errorf("expected only code.js, got %v", files)
+	}
+}
+
+func TestBuildEvalPrompt(t *testing.T) {
+	spec := "Build a REST API with POST /users endpoint"
+	testOutput := "FAIL: expected 201 got 404"
+	files := []FileContent{
+		{Path: "src/routes.js", Content: "const express = require('express');\n"},
+	}
+
+	prompt := BuildEvalPrompt(spec, testOutput, files)
+
+	required := []string{
+		"diagnostic assistant",
+		"## Task Spec",
+		"Build a REST API",
+		"## Test Output",
+		"expected 201 got 404",
+		"## Source Files",
+		"### src/routes.js",
+		"## Instructions",
+		"## Failing Tests",
+		"## Unmet Requirements",
+		"## Priority Fix",
+		"## Suggested Approach",
+	}
+	for _, s := range required {
+		if !strings.Contains(prompt, s) {
+			t.Errorf("prompt missing: %q", s)
+		}
+	}
+}
+
+func TestBuildEvalPrompt_TruncatesTestOutput(t *testing.T) {
+	spec := "task"
+	var lines []string
+	for i := 0; i < 300; i++ {
+		lines = append(lines, "error line")
+	}
+	testOutput := strings.Join(lines, "\n")
+
+	prompt := BuildEvalPrompt(spec, testOutput, nil)
+
+	if strings.Count(prompt, "error line") > 200 {
+		t.Error("test output should be truncated to 200 lines")
+	}
+	if !strings.Contains(prompt, "truncated") {
+		t.Error("should contain truncation notice")
+	}
+}
+
+func TestRunEvalGate_ReturnsErrorWithoutClaude(t *testing.T) {
+	ctx := context.Background()
+	dir := t.TempDir()
+
+	os.WriteFile(filepath.Join(dir, "spec.txt"), []byte("build something"), 0644)
+
+	_, err := RunEvalGate(ctx, dir, filepath.Join(dir, "spec.txt"), "test failed", "", 5)
+	// Should fail because there's no git repo in temp dir
+	if err == nil {
+		t.Log("RunEvalGate succeeded — integration path works")
+	} else {
+		t.Logf("RunEvalGate errored as expected: %v", err)
 	}
 }

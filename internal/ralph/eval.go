@@ -1,11 +1,17 @@
 package ralph
 
 import (
+	"context"
+	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"sort"
 	"strings"
+	"time"
+
+	gitpkg "github.com/signalnine/conclave/internal/git"
 )
 
 var filteredPrefixes = []string{
@@ -145,4 +151,95 @@ func isInsideDir(baseDir, path string) bool {
 		return false
 	}
 	return strings.HasPrefix(abs, absBase+string(filepath.Separator)) || abs == absBase
+}
+
+const evalPreamble = `You are a diagnostic assistant. Analyze the test/build/lint failures below, identify root causes, and specify the single most impactful fix. Base your conclusions only on the provided spec, test output, and source files. If the root cause appears to be outside the provided files, say so explicitly rather than speculating.`
+
+const evalTemplate = `## Instructions
+Respond using EXACTLY this template. Maximum 5 bullets per section.
+Do not restate raw test output verbatim — synthesize into root causes.
+
+## Failing Tests
+- [group by root cause, not by test name]
+
+## Unmet Requirements
+- [only spec violations evidenced by actual failures]
+
+## Priority Fix
+- [exactly one highest-leverage fix, one sentence]
+
+## Suggested Approach
+- [3-5 concrete steps at the design/logic level, no code]`
+
+const maxTestOutputLines = 200
+
+// BuildEvalPrompt constructs the prompt sent to the evaluator LLM,
+// combining the task spec, test output, and relevant source files.
+func BuildEvalPrompt(spec, testOutput string, files []FileContent) string {
+	truncated := testOutput
+	lines := strings.Split(testOutput, "\n")
+	if len(lines) > maxTestOutputLines {
+		truncated = strings.Join(lines[:maxTestOutputLines], "\n") +
+			fmt.Sprintf("\n[... truncated, %d total lines ...]", len(lines))
+	}
+
+	var b strings.Builder
+	b.WriteString(evalPreamble)
+	b.WriteString("\n\n## Task Spec\n")
+	b.WriteString(spec)
+	b.WriteString("\n\n## Test Output (verbatim)\n```\n")
+	b.WriteString(truncated)
+	b.WriteString("\n```\n")
+
+	if len(files) > 0 {
+		b.WriteString("\n## Source Files\n")
+		for _, f := range files {
+			fmt.Fprintf(&b, "\n### %s\n```\n%s\n```\n", f.Path, f.Content)
+		}
+	}
+
+	b.WriteString("\n")
+	b.WriteString(evalTemplate)
+	return b.String()
+}
+
+const defaultMaxSourceLines = 8000
+
+// RunEvalGate runs the evaluator: collects relevant files from git diff and
+// test output traces, builds a prompt, and sends it to claude for analysis.
+func RunEvalGate(ctx context.Context, projectDir, specFile, testOutput, evalModel string, timeout int) (string, error) {
+	ctx, cancel := context.WithTimeout(ctx, time.Duration(timeout)*time.Second)
+	defer cancel()
+
+	specData, err := os.ReadFile(specFile)
+	if err != nil {
+		return "", fmt.Errorf("reading spec: %w", err)
+	}
+
+	g := gitpkg.New(projectDir)
+	diffFiles, _ := g.DiffNameOnlyHead()
+	traceFiles := ExtractFilePathsFromOutput(testOutput)
+
+	files, err := CollectRelevantFiles(projectDir, diffFiles, traceFiles, defaultMaxSourceLines)
+	if err != nil {
+		return "", fmt.Errorf("collecting files: %w", err)
+	}
+
+	prompt := BuildEvalPrompt(string(specData), testOutput, files)
+
+	// Build command — prompt via stdin to avoid OS arg length limits
+	cmdArgs := []string{"-p", "--output-format", "text"}
+	if evalModel != "" {
+		cmdArgs = append(cmdArgs, "--model", evalModel)
+	}
+
+	cmd := exec.CommandContext(ctx, "claude", cmdArgs...)
+	cmd.Dir = projectDir
+	cmd.Stdin = strings.NewReader(prompt)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return "", fmt.Errorf("evaluator failed: %w\noutput: %s", err, string(out))
+	}
+
+	return string(out), nil
 }
