@@ -1,6 +1,9 @@
 package ralph
 
 import (
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -104,5 +107,85 @@ func TestExtractFilePaths_Empty(t *testing.T) {
 	paths := ExtractFilePathsFromOutput("")
 	if len(paths) != 0 {
 		t.Errorf("expected empty, got %v", paths)
+	}
+}
+
+func TestCollectRelevantFiles(t *testing.T) {
+	dir := t.TempDir()
+
+	os.MkdirAll(filepath.Join(dir, "src"), 0755)
+	os.WriteFile(filepath.Join(dir, "src", "app.js"), []byte("const x = 1;\n"), 0644)
+	os.WriteFile(filepath.Join(dir, "src", "util.js"), []byte("module.exports = {};\n"), 0644)
+	os.MkdirAll(filepath.Join(dir, "node_modules", "express"), 0755)
+	os.WriteFile(filepath.Join(dir, "node_modules", "express", "index.js"), []byte("nope"), 0644)
+
+	diffFiles := []string{"src/app.js", "src/util.js"}
+	traceFiles := []string{"src/app.js"}
+
+	files, err := CollectRelevantFiles(dir, diffFiles, traceFiles, 8000)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(files) != 2 {
+		t.Fatalf("expected 2 files, got %d", len(files))
+	}
+
+	// Files in both lists should come first (src/app.js)
+	if files[0].Path != "src/app.js" {
+		t.Errorf("expected src/app.js first (in both lists), got %s", files[0].Path)
+	}
+}
+
+func TestCollectRelevantFiles_LineCap(t *testing.T) {
+	dir := t.TempDir()
+
+	var content strings.Builder
+	for i := 0; i < 100; i++ {
+		content.WriteString("line\n")
+	}
+	os.WriteFile(filepath.Join(dir, "big.js"), []byte(content.String()), 0644)
+	os.WriteFile(filepath.Join(dir, "aaa.js"), []byte("tiny\n"), 0644)
+
+	// aaa.js sorts first, gets included (2 lines), then big.js is skipped (2+101 > 50)
+	diffFiles := []string{"big.js", "aaa.js"}
+
+	files, err := CollectRelevantFiles(dir, diffFiles, nil, 50)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	totalLines := 0
+	for _, f := range files {
+		totalLines += strings.Count(f.Content, "\n") + 1
+	}
+	if totalLines > 50 {
+		t.Errorf("total lines %d exceeds cap 50", totalLines)
+	}
+}
+
+func TestCollectRelevantFiles_FiltersBinaryAndTraversal(t *testing.T) {
+	dir := t.TempDir()
+
+	os.WriteFile(filepath.Join(dir, "image.png"), []byte("binary"), 0644)
+	os.WriteFile(filepath.Join(dir, "code.js"), []byte("ok\n"), 0644)
+
+	diffFiles := []string{"image.png", "code.js", "../../etc/passwd"}
+
+	files, err := CollectRelevantFiles(dir, diffFiles, nil, 8000)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, f := range files {
+		if f.Path == "image.png" {
+			t.Error("should filter binary files")
+		}
+		if f.Path == "../../etc/passwd" {
+			t.Error("should filter path traversal")
+		}
+	}
+	if len(files) != 1 || files[0].Path != "code.js" {
+		t.Errorf("expected only code.js, got %v", files)
 	}
 }
