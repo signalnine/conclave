@@ -131,6 +131,20 @@ func (g *Git) Push(branch string) error {
 	return err
 }
 
+func (g *Git) DiffNameOnlyHead() ([]string, error) {
+	out, err := g.run("diff", "--name-only", "--cached", "HEAD")
+	if err != nil {
+		out, err = g.run("diff", "--name-only", "--cached")
+		if err != nil {
+			return nil, err
+		}
+	}
+	if out == "" {
+		return nil, nil
+	}
+	return strings.Split(out, "\n"), nil
+}
+
 func (g *Git) StatusPorcelain() (string, error) {
 	return g.run("status", "--porcelain")
 }
