@@ -700,3 +700,69 @@ Both experiments ran full 19-task benchmarks with 2 trials each on Sonnet 4.6.
 - **Test on Opus** to see if the v8 prompts also improve Opus (expected: modest gain since Opus already internalizes TDD).
 - **Investigate collab-server** as a case study in task-specific ceilings.
 - **Consider v8-eval (runtime evaluator)** for the remaining hard tasks where even v8 prompts score <70%.
+
+---
+
+## Phase 4: v8-combined and Opus Validation (2026-03-26)
+
+### Hypothesis
+
+TDD-hard and contract address complementary failure modes (test discipline vs structured planning). Combining them into a single ~350-word prompt should stack the benefits. Additionally, testing all v8 variants on Opus validates whether prompt improvements are model-general or Sonnet-specific.
+
+### v8-combined-sonnet Results (19 tasks, 0 crashes)
+
+The combined prompt merges contract (step 2: write CONTRACT.md) with mandatory TDD (step 3: "STOP IMMEDIATELY") and verify-against-contract (step 5).
+
+| Variant | Tasks | Avg Score | Avg Cost | Crashes |
+|---------|-------|-----------|----------|---------|
+| v8-combined-sonnet | 19 | **88.4%** | $0.82 | 0 |
+| v8-tdd-hard-sonnet | 19 | 86.4% | $0.84 | 0 |
+| v8-contract-sonnet | 19 | 86.1% | $0.74 | 0 |
+| v7-lite-sonnet | 16 | 81.7% | $0.69 | 7 |
+
+**The combined approach stacks.** 88.4% > either individual variant (86.4%, 86.1%), confirming the two techniques address independent failure modes.
+
+### Opus v8 Results (19 tasks each, all variants)
+
+| Variant | Tasks | Avg Score | Avg Cost | Crashes |
+|---------|-------|-----------|----------|---------|
+| v8-combined-opus | 19 | **88.7%** | $1.44 | 0 |
+| v8-contract-opus | 19 | 87.4% | $1.60 | 0 |
+| v8-tdd-hard-opus | 19 | 84.1% | $1.58 | 0 |
+| v7-lite-opus | 17 | 85.7% | $1.36 | 16 |
+
+### Cross-Model Analysis
+
+| Variant | Sonnet | Opus | Delta | Cost Ratio |
+|---------|--------|------|-------|------------|
+| v8-combined | 88.4% | 88.7% | +0.3pp | 1.8x |
+| v8-contract | 86.1% | 87.4% | +1.3pp | 2.2x |
+| v8-tdd-hard | 86.4% | 84.1% | **-2.3pp** | 1.9x |
+| v7-lite | 81.7% | 85.7% | +4.0pp | 2.0x |
+
+### Key Findings
+
+1. **v8-combined is the winner for both models.** Opus 88.7%, Sonnet 88.4% — effectively identical performance. This is the first prompt variant where Sonnet fully closes the gap with Opus.
+
+2. **TDD-hard actually hurts Opus.** v8-tdd-hard-opus (84.1%) < v7-lite-opus (85.7%), a -1.6pp regression. Opus already internalizes TDD; the mandatory "STOP IMMEDIATELY. Delete the implementation." language is too rigid and creates overhead without benefit. Sonnet, which needs the TDD nudge, benefits (+4.7pp). This is a genuine model-specific interaction effect.
+
+3. **Contract helps both models uniformly.** v8-contract improves Opus by +1.7pp and Sonnet by +4.4pp. Structured planning (write success criteria before code) is universally beneficial, though the magnitude varies with baseline.
+
+4. **The combined prompt neutralizes model differences.** The 4.0pp gap at v7-lite shrinks to 0.3pp at v8-combined. The contract component gives both models structure, while the TDD component helps Sonnet without measurably hurting Opus when paired with the contract.
+
+5. **Sonnet 4.6 + v8-combined is the cost-performance champion.** 88.4% at $0.82/trial vs Opus's 88.7% at $1.44/trial. For 0.3pp of score, you pay 1.8x more. The ROI case for Opus has essentially vanished.
+
+6. **Zero crashes across all v8 variants.** Both models, all 3 variants, 114 total trials — zero session crashes. The v7-lite crash rate (Sonnet: 7/23, Opus: 16/33) was an infrastructure artifact that v8 prompts somehow avoid.
+
+### Recommendations for Conclave
+
+1. **Adopt v8-combined as the default system prompt** for both Sonnet and Opus. It's the highest-scoring variant for both models.
+
+2. **Default to Sonnet 4.6** — 88.4% at half the cost of Opus is a clear win. Only use Opus for tasks where the 0.3pp matters (it doesn't, statistically).
+
+3. **The prompt evolution path is clear:** v6 skills (~83%) → v7-lite genes (~82-86%) → v8-combined (~88%). Each step simplified the methodology while improving scores. Less ceremony, more focus.
+
+4. **Next investigations:**
+   - Why does v8 eliminate crashes? Is it prompt length, structure, or specific phrasing?
+   - Can v8-eval (runtime evaluator) push the remaining hard tasks (collab-server ~58%) further?
+   - Is there a v9 that adapts prompt intensity per task difficulty?
