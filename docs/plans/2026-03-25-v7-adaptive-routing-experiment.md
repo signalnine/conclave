@@ -444,3 +444,140 @@ The v7-lite prompt instructs TDD but Sonnet ignores it under pressure. On analyt
 ### Scoring Artifact Note
 
 Thunderdome scoring is asynchronous — meta.json files initially show partial scores (tests:0, static_analysis:0) that update as scoring pipelines complete. Several trials temporarily appeared as 0% before updating to real scores. Always re-read meta.json rather than caching scores.
+
+---
+
+## Harness Design Analysis (2026-03-26T01:30)
+
+**Source:** [Anthropic Engineering — Harness Design for Long-Running Apps](https://www.anthropic.com/engineering/harness-design-long-running-apps)
+
+This paper by Prithvi Rajasekaran describes a generator-evaluator architecture for long-running Claude tasks. Its findings validate and extend our v7 experiment results.
+
+### Key Connections to Our Data
+
+**1. "Every component encodes an assumption about what the model can't do" — we proved this.**
+v7-lite (no skills, ~200-word prompt) at 85.7% beats v7-boil (full conclave ceremony) at 78.3%. The skill system encoded assumptions about needing structured brainstorming, multi-step planning, and subagent dispatch. For Opus 4.6, those assumptions are stale — the ceremony hurts by consuming context and adding overhead.
+
+**2. "Context anxiety" explains Sonnet's failure mode.**
+The paper identifies Sonnet 4.5 prematurely wrapping up work as context grows. Our Sonnet 4.6 traces show the same: reactive-spreadsheet had 7 turns (Opus: 52), analytics-dashboard had 74 actions but zero tests (rushed to finish). This isn't "Sonnet is worse" — it's context anxiety. The paper's solution: context resets with structured handoff artifacts, which is exactly what ralph-loop already does.
+
+**3. Self-evaluation fails; runtime evaluation works.**
+The paper: "Agents confidently praise their own work." Our v6 data: consensus review (multi-agent code review) added zero measurable value. But the paper's evaluator is fundamentally different from ours — it runs the actual application via Playwright, clicks through UI, tests APIs, checks database state. Our consensus system reads diffs. The paper suggests the lever is *runtime testing*, not *code review*.
+
+**4. Sprint contracts > implementation plans.**
+The paper's "sprint contracts" define testable success criteria negotiated before implementation. Our plans define steps to execute. The difference: contracts are verifiable by an evaluator, plans are followable by an implementer. Contracts close the loop; plans don't.
+
+**5. Opus 4.6 outgrew sprint decomposition.**
+The paper found Opus 4.6 handles 2+ hour continuous sessions without context resets. Our data confirms: v7-lite (no decomposition) beats v7-boil (full decomposition). The model has outgrown the scaffolding.
+
+**6. The simplification principle.**
+"Methodically remove one component at a time." That's exactly what v7-lite is. The paper validates our approach and suggests next: selectively add back only components that provide lift at the capability boundary.
+
+### What This Changes
+
+The v7 experiment answered "does ceremony help?" (no, for Opus). The paper reframes the question: **which components are load-bearing, and for which models?** Our data combined with the paper's findings point to:
+
+- **Planner**: Not load-bearing for Opus (v7-lite proves this). Possibly still useful for Sonnet on complex tasks.
+- **Skill ceremony**: Not load-bearing (v7-lite > v7-boil).
+- **TDD instruction**: Load-bearing for Sonnet (our trace analysis shows the entire score gap is a testing gap).
+- **Context resets**: Load-bearing for Sonnet on marathon tasks (context anxiety).
+- **Runtime evaluator**: Untested but the paper's strongest signal — an evaluator that actually runs code is fundamentally different from code review.
+
+---
+
+## Proposed Experiments: v8 Harness Variants
+
+Based on the combined v7 results + harness design paper findings.
+
+### Experiment 1: v8-eval — Runtime Evaluator
+
+**Hypothesis:** Adding a runtime evaluator (runs tests, checks build, verifies behavior) to v7-lite will improve scores on hard tasks without the overhead of full ceremony.
+
+**Design:** Two-agent system in a single container:
+- **Generator**: v7-lite prompt, implements the task
+- **Evaluator**: Separate `claude -p` invocation that reads the generator's code, runs `npm test && npm run build && npm run lint`, then provides structured feedback (pass/fail per criterion, specific failures, suggested fixes)
+- Generator gets evaluator feedback as a context reset (fresh invocation with feedback file), not an appended message
+
+**Adapter:** `conclave-v8-eval-opus`
+```
+1. Generator runs with v7-lite prompt (implement task)
+2. Evaluator runs: execute test suite, read output, grade against task spec
+3. If evaluator finds failures: write feedback file, re-invoke generator with feedback
+4. Max 3 eval cycles
+```
+
+**Key difference from consensus:** Evaluator runs the code, not reads diffs. Evaluator is skeptical by default (tuned to fail, not praise).
+
+**Tasks:** Full 19-task benchmark, 2 trials each. Compare v8-eval vs v7-lite-opus.
+
+**What we learn:** Does runtime evaluation add lift? On which task tiers?
+
+### Experiment 2: v8-sonnet-reset — Context Resets for Sonnet
+
+**Hypothesis:** Sonnet's hard-task deficit (-6.8pp on marathon tasks) is caused by context anxiety, not capability. Fresh context resets after partial progress will close the gap.
+
+**Design:** Ralph-loop style iteration but lighter:
+- Run Sonnet with v7-lite prompt
+- After 15 minutes or 40 turns (whichever first): kill, snapshot progress (git diff + test output)
+- Re-invoke Sonnet with fresh context: task spec + "Here is the work so far: [diff]. Here are the current test results: [output]. Continue from where this left off."
+- Max 3 resets
+
+**Adapter:** `conclave-v8-sonnet-reset`
+
+**Tasks:** The 5 hardest tasks where Sonnet underperforms (analytics-dashboard, reactive-spreadsheet, permission-maze, plugin-marketplace, collab-server). 2 trials each.
+
+**What we learn:** Is context anxiety the root cause of Sonnet's marathon deficit? Does structured reset close the gap vs Opus?
+
+### Experiment 3: v8-contract — Sprint Contracts
+
+**Hypothesis:** Replacing "plan briefly then implement" with "define testable success criteria, then implement against them" improves hard-task scores by anchoring the agent to verifiable goals.
+
+**Design:** Modified v7-lite prompt that adds a contract phase:
+```
+Before implementing, write a CONTRACT.md file listing:
+1. Every behavior the finished code must exhibit
+2. How each behavior can be verified (test command or manual check)
+3. What "done" looks like for each criterion
+
+Then implement against the contract. After implementation, verify
+every criterion in the contract. If any fail, fix and re-verify.
+Do not stop until all contract criteria pass.
+```
+
+**Adapter:** `conclave-v8-contract-opus` and `conclave-v8-contract-sonnet`
+
+**Tasks:** Full 19-task benchmark, 2 trials each, both models.
+
+**What we learn:** Does explicit contract-writing improve score vs v7-lite's implicit "plan briefly"? Does it help Sonnet more than Opus (hypothesis: yes, because it forces test-writing)?
+
+### Experiment 4: v8-tdd-hard — Stronger TDD for Sonnet
+
+**Hypothesis:** Sonnet's testing gap is a prompt compliance issue, not a capability issue. Stronger TDD language closes the gap.
+
+**Design:** v7-lite prompt but with TDD instruction changed from suggestive to mandatory:
+```diff
+- ### 3. Test-First Development
+- Write a failing test, then write the minimal code to pass it.
++ ### 3. Test-First Development (MANDATORY — NOT OPTIONAL)
++ You MUST write a failing test before ANY implementation code.
++ If you catch yourself writing implementation without a test, STOP.
++ Delete the implementation. Write the test first. This is not negotiable.
++ Tests are how you prove your code works. No tests = no proof = not done.
+```
+
+**Adapter:** `conclave-v8-tdd-hard-sonnet`
+
+**Tasks:** The 5 tasks where Sonnet under-tested (analytics-dashboard, reactive-spreadsheet, plugin-marketplace, task-queue, permission-maze). 2 trials each.
+
+**What we learn:** Is Sonnet's testing gap a prompt wording issue? Does stronger language produce comparable test-writing behavior to Opus?
+
+### Experiment Priority
+
+| # | Experiment | Trials | Est. Cost | Expected Signal |
+|---|-----------|--------|-----------|-----------------|
+| 1 | v8-tdd-hard (Sonnet) | 10 | ~$7 | High — cheapest test of clearest hypothesis |
+| 2 | v8-contract (both models) | 76 | ~$80 | High — tests paper's strongest recommendation |
+| 3 | v8-sonnet-reset | 10 | ~$14 | Medium — tests context anxiety hypothesis |
+| 4 | v8-eval | 38 | ~$60 | Medium — most complex to build, highest potential |
+
+Run experiment 1 first (cheapest, fastest, clearest hypothesis). If TDD-hard closes Sonnet's gap, experiment 3 becomes less important. If contracts work, experiment 4's evaluator might be unnecessary for most tasks.
