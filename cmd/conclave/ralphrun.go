@@ -2,9 +2,11 @@ package main
 
 import (
 	"context"
+	"crypto/md5"
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -32,6 +34,10 @@ func init() {
 	ralphRunCmd.Flags().String("board-dir", "", "Bulletin board directory for cross-task communication")
 	ralphRunCmd.Flags().String("board-topic", "", "Topic to publish board messages to")
 	ralphRunCmd.Flags().String("task-id", "", "Task identifier for board messages")
+	ralphRunCmd.Flags().Bool("eval", false, "Enable evaluator gate after test failure")
+	ralphRunCmd.Flags().String("eval-model", "", "Model for evaluator (default: same as generator)")
+	ralphRunCmd.Flags().Int("eval-timeout", 120, "Evaluator gate timeout (seconds)")
+	ralphRunCmd.Flags().String("system-prompt", "", "Custom system prompt (prepended to TDDPreamble)")
 	rootCmd.AddCommand(ralphRunCmd)
 }
 
@@ -45,6 +51,10 @@ func runRalphRun(cmd *cobra.Command, args []string) error {
 	boardDir, _ := cmd.Flags().GetString("board-dir")
 	boardTopic, _ := cmd.Flags().GetString("board-topic")
 	taskID, _ := cmd.Flags().GetString("task-id")
+	evalEnabled, _ := cmd.Flags().GetBool("eval")
+	evalModel, _ := cmd.Flags().GetString("eval-model")
+	evalTimeout, _ := cmd.Flags().GetInt("eval-timeout")
+	systemPrompt, _ := cmd.Flags().GetString("system-prompt")
 
 	if task == "" {
 		return fmt.Errorf("--task is required")
@@ -91,7 +101,11 @@ func runRalphRun(cmd *cobra.Command, args []string) error {
 
 		// Gate 1: Implementation
 		fmt.Fprintln(os.Stderr, "Gate 1: Implementation...")
-		prompt := ralph.TDDPreamble + "\n\n" + task
+		preamble := ralph.TDDPreamble
+		if systemPrompt != "" {
+			preamble = systemPrompt + "\n\n" + ralph.TDDPreamble
+		}
+		prompt := preamble + "\n\n" + task
 		if stuckDirective != "" {
 			prompt = stuckDirective + "\n\n" + prompt
 		}
@@ -145,7 +159,28 @@ func runRalphRun(cmd *cobra.Command, args []string) error {
 		testOutput, testErr := ralph.RunTestGate(ctx, cwd, testTimeout)
 		if testErr != nil {
 			fmt.Fprintf(os.Stderr, "  Tests failed\n")
-			sm.Update("tests", 1, testOutput)
+			if evalEnabled {
+				fmt.Fprintln(os.Stderr, "  Running evaluator...")
+				evalOutput, evalErr := ralph.RunEvalGate(ctx, cwd, task, testOutput, evalModel, evalTimeout)
+				if evalErr != nil {
+					fmt.Fprintf(os.Stderr, "  Evaluator failed, using raw test output: %v\n", evalErr)
+					sm.Update("tests", 1, testOutput)
+				} else {
+					fmt.Fprintln(os.Stderr, "  Evaluator feedback received")
+					// Save raw test output to sidecar file
+					rawRef := fmt.Sprintf(".ralph_raw_%d.txt", state.Iteration)
+					os.WriteFile(filepath.Join(cwd, rawRef), []byte(testOutput), 0644)
+					// Hash raw test output for stuck detection
+					rawLines := strings.Split(testOutput, "\n")
+					if len(rawLines) > 20 {
+						rawLines = rawLines[:20]
+					}
+					rawHash := fmt.Sprintf("%x", md5.Sum([]byte(strings.Join(rawLines, "\n"))))
+					sm.UpdateWithEval("tests", 1, evalOutput, true, rawRef, rawHash)
+				}
+			} else {
+				sm.Update("tests", 1, testOutput)
+			}
 			continue
 		}
 		fmt.Fprintln(os.Stderr, "  Tests passed")
