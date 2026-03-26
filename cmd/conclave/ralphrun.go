@@ -169,7 +169,9 @@ func runRalphRun(cmd *cobra.Command, args []string) error {
 					fmt.Fprintln(os.Stderr, "  Evaluator feedback received")
 					// Save raw test output to sidecar file
 					rawRef := fmt.Sprintf(".ralph_raw_%d.txt", state.Iteration)
-					os.WriteFile(filepath.Join(cwd, rawRef), []byte(testOutput), 0644)
+					if writeErr := os.WriteFile(filepath.Join(cwd, rawRef), []byte(testOutput), 0644); writeErr != nil {
+					fmt.Fprintf(os.Stderr, "  Warning: failed to save raw output: %v\n", writeErr)
+				}
 					// Hash raw test output for stuck detection
 					rawLines := strings.Split(testOutput, "\n")
 					if len(rawLines) > 20 {
