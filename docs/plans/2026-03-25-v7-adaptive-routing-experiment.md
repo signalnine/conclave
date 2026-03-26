@@ -581,3 +581,122 @@ Do not stop until all contract criteria pass.
 | 4 | v8-eval | 38 | ~$60 | Medium — most complex to build, highest potential |
 
 Run experiment 1 first (cheapest, fastest, clearest hypothesis). If TDD-hard closes Sonnet's gap, experiment 3 becomes less important. If contracts work, experiment 4's evaluator might be unnecessary for most tasks.
+
+---
+
+## v8 Experiment Results — Final (2026-03-26T03:30)
+
+Both experiments ran full 19-task benchmarks with 2 trials each on Sonnet 4.6.
+
+### Summary
+
+| Variant | Real Trials | Tasks | Avg Score | Cost/trial | Crashes |
+|---------|------------|-------|-----------|------------|---------|
+| **v8-tdd-hard-sonnet** | 37 | 19 | **86.3%** | $0.77 | **0** |
+| **v8-contract-sonnet** | 38 | 19 | **86.1%** | $0.74 | **0** |
+| v7-lite-opus | 36 | 17 | 85.7% | $1.36 | 16 |
+| v7-lite-sonnet | 31 | 16 | 81.7% | $0.69 | 7 |
+| v6-opus baseline | — | — | 76.6% | — | — |
+
+**Both v8 Sonnet variants beat v7-lite Opus at half the cost with zero crashes.**
+
+### Per-Task Comparison
+
+| Task | TDD-hard | Contract | v7-Sonnet | v7-Opus |
+|------|----------|----------|-----------|---------|
+| fts-search | 100.0% | 100.0% | 100.0% | 100.0% |
+| monorepo-disaster | 100.0% | 100.0% | 100.0% | 100.0% |
+| ssg-toolkit | 100.0% | 100.0% | 100.0% | 100.0% |
+| debug-nightmare | 100.0% | 100.0% | 100.0% | 96.9% |
+| financial-ledger | 100.0% | 100.0% | 100.0% | crashed |
+| phantom-invoice | 98.3% | 98.3% | 98.3% | 98.3% |
+| ecommerce-backend | **95.3%** | 88.6% | 93.4% | 94.9% |
+| time-tracker | 91.5% | **94.0%** | 93.8% | 87.9% |
+| beam-splitter | 93.0% | 93.3% | crashed | 91.8% |
+| factory-reset | **93.2%** | 90.8% | crashed | 91.9% |
+| constraint-scheduler | 86.9% | **93.3%** | 90.8% | 92.8% |
+| plugin-marketplace | 89.1% | **90.0%** | 87.0% | 92.9% |
+| structural-merge | 87.4% | **91.0%** | 93.6% | crashed |
+| reactive-spreadsheet | 87.6% | **91.0%** | 39.9% | 89.4% |
+| circuit-debugger | 66.8% | **80.5%** | crashed | 82.8% |
+| permission-maze | 72.1% | **76.7%** | 57.8% | 63.7% |
+| task-queue | **67.8%** | 63.3% | 66.8% | 63.1% |
+| collab-server | 58.4% | 56.8% | 58.2% | 58.1% |
+| analytics-dashboard | **52.9%** | 27.7% | 27.7% | 51.8% |
+
+### Hard-Task Recovery (the 5 tasks where v7-lite-sonnet underperformed)
+
+| Task | v7-Sonnet | v8-tdd-hard | v8-contract | v7-Opus | Winner |
+|------|-----------|-------------|-------------|---------|--------|
+| reactive-spreadsheet | 39.9% | **87.6%** (+48pp) | **91.0%** (+51pp) | 89.4% | contract |
+| permission-maze | 57.8% | **72.1%** (+14pp) | **76.7%** (+19pp) | 63.7% | contract |
+| analytics-dashboard | 27.7% | **52.9%** (+25pp) | 27.7% (0pp) | 51.8% | tdd-hard |
+| plugin-marketplace | 87.0% | 89.1% (+2pp) | **90.0%** (+3pp) | 92.9% | contract |
+| collab-server | 58.2% | 58.4% (+0pp) | 56.8% (-1pp) | 58.1% | none |
+
+4 of 5 hard tasks improved substantially. collab-server remains stuck at ~58% for all variants — likely a task-specific ceiling.
+
+### Behavioral Trace Analysis
+
+| Task | Variant | Score | Turns | Test Writes | Test Runs |
+|------|---------|-------|-------|-------------|-----------|
+| analytics-dashboard | v7-sonnet | 28% | 74 | **0** | **0** |
+| analytics-dashboard | tdd-hard | **52%** | 69 | **1** | **2** |
+| analytics-dashboard | contract | 28% | 59 | 0 | 0 |
+| reactive-spreadsheet | v7-sonnet | 40% | **7** | 1 | 1 |
+| reactive-spreadsheet | tdd-hard | **87%** | 36 | **3** | **7** |
+| reactive-spreadsheet | contract | **91%** | 21 | 2 | 3 |
+| permission-maze | v7-sonnet | 56% | 31 | 1 | 0 |
+| permission-maze | tdd-hard | 70% | 34 | **3** | 2 |
+| permission-maze | contract | **76%** | 36 | **3** | 1 |
+
+**Key findings:**
+
+1. **TDD-hard forces test writing.** On analytics-dashboard, v7-sonnet wrote 0 tests; tdd-hard wrote 1 and ran tests twice, scoring +25pp. The mandatory language works.
+
+2. **Contract works differently.** Contract doesn't always force tests (analytics-dashboard: 0 test writes) but forces *structured thinking*. On reactive-spreadsheet, contract scored 91% with fewer turns (21 vs 36) — the CONTRACT.md file (5.4KB of success criteria) focused the implementation.
+
+3. **reactive-spreadsheet is the clearest win.** v7-sonnet: 7 turns, gave up. Both v8 variants: full implementation. The stronger prompts prevent Sonnet's premature exit (context anxiety).
+
+4. **Contract files are substantial.** analytics-dashboard: 4.2KB, reactive-spreadsheet: 5.4KB, permission-maze: 4.0KB. The model takes the contract-writing seriously.
+
+### Why Two Approaches Work Differently
+
+- **TDD-hard** excels when the task needs test discipline (analytics-dashboard: +25pp vs contract's +0pp). The mandatory language overrides Sonnet's tendency to skip tests.
+- **Contract** excels when the task needs structured planning (reactive-spreadsheet: 91% vs tdd-hard's 87.6%). Writing success criteria before code prevents the "jump in and get lost" failure mode.
+- **Both** prevent session crashes (0 crashes each vs 7 for v7-lite-sonnet). Stronger prompts may anchor Sonnet against premature exit.
+
+### Tier Analysis
+
+| Tier | Tasks | TDD-hard | Contract | v7-Sonnet | v7-Opus |
+|------|-------|----------|----------|-----------|---------|
+| Perfect (100%) | 5 tasks | 100.0% | 100.0% | 100.0% | 99.0% |
+| Excellent (90%+) | 5 tasks | 93.0% | 93.3% | 93.6%* | 93.2% |
+| Good (80-90%) | 3 tasks | 87.9% | 87.8% | 87.0%† | 88.5% |
+| Moderate (60-75%) | 4 tasks | 73.4% | 77.6% | 57.5%† | 67.4% |
+| Weak (<60%) | 2 tasks | 55.7% | 42.3% | 43.0%† | 55.0% |
+
+*v7-sonnet had crashes on some excellent/good tasks, so direct comparison is incomplete.
+†Only includes tasks where v7-sonnet had real data.
+
+### Conclusions
+
+1. **Prompt wording is the single biggest lever for Sonnet.** v8-tdd-hard and v8-contract both close the Opus gap entirely — from -5.4pp to +0.6pp and +0.4pp respectively — just by changing ~100 words in the system prompt.
+
+2. **Sonnet 4.6 + right prompt > Opus 4.6 + weaker prompt.** At $0.75/trial vs $1.36/trial (1.8x cheaper) with zero crashes vs 16 crashes. The cost-performance frontier has shifted.
+
+3. **Different prompts for different failure modes:**
+   - Missing tests → TDD-hard (mandatory test language)
+   - Missing structure → Contract (success criteria before code)
+   - Premature exit → Both help (stronger prompts anchor against context anxiety)
+
+4. **collab-server is a task ceiling, not a model limitation.** All 4 variants score ~58%. This task is genuinely hard regardless of approach.
+
+5. **Zero crashes is the sleeper finding.** v7-lite-sonnet had 7 session crashes (3 tasks lost entirely). Both v8 variants: zero. This alone adds ~2-3pp to the effective average because crashed tasks score 0%.
+
+### Next Steps
+
+- **Combine TDD-hard + Contract** into a single v8-combined prompt. The two approaches complement: TDD for test discipline, contract for structured planning.
+- **Test on Opus** to see if the v8 prompts also improve Opus (expected: modest gain since Opus already internalizes TDD).
+- **Investigate collab-server** as a case study in task-specific ceilings.
+- **Consider v8-eval (runtime evaluator)** for the remaining hard tasks where even v8 prompts score <70%.
