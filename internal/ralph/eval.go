@@ -129,7 +129,10 @@ func CollectRelevantFiles(projectDir string, diffFiles, traceFiles []string, max
 			continue
 		}
 		content := string(data)
-		lines := strings.Count(content, "\n") + 1
+		lines := strings.Count(content, "\n")
+		if len(content) > 0 && content[len(content)-1] != '\n' {
+			lines++ // Only add 1 for non-newline-terminated files
+		}
 
 		if totalLines+lines > maxLines && totalLines > 0 {
 			break
@@ -207,14 +210,9 @@ const defaultMaxSourceLines = 8000
 
 // RunEvalGate runs the evaluator: collects relevant files from git diff and
 // test output traces, builds a prompt, and sends it to claude for analysis.
-func RunEvalGate(ctx context.Context, projectDir, specFile, testOutput, evalModel string, timeout int) (string, error) {
+func RunEvalGate(ctx context.Context, projectDir, specContent, testOutput, evalModel string, timeout int) (string, error) {
 	ctx, cancel := context.WithTimeout(ctx, time.Duration(timeout)*time.Second)
 	defer cancel()
-
-	specData, err := os.ReadFile(specFile)
-	if err != nil {
-		return "", fmt.Errorf("reading spec: %w", err)
-	}
 
 	g := gitpkg.New(projectDir)
 	diffFiles, _ := g.DiffNameOnlyHead()
@@ -225,7 +223,7 @@ func RunEvalGate(ctx context.Context, projectDir, specFile, testOutput, evalMode
 		return "", fmt.Errorf("collecting files: %w", err)
 	}
 
-	prompt := BuildEvalPrompt(string(specData), testOutput, files)
+	prompt := BuildEvalPrompt(specContent, testOutput, files)
 
 	// Build command — prompt via stdin to avoid OS arg length limits
 	cmdArgs := []string{"-p", "--output-format", "text"}

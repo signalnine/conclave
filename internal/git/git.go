@@ -142,7 +142,14 @@ func (g *Git) DiffNameOnlyHead() ([]string, error) {
 	if out == "" {
 		return nil, nil
 	}
-	return strings.Split(out, "\n"), nil
+	parts := strings.Split(out, "\n")
+	var result []string
+	for _, p := range parts {
+		if p != "" {
+			result = append(result, p)
+		}
+	}
+	return result, nil
 }
 
 func (g *Git) StatusPorcelain() (string, error) {

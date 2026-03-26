@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestExtractFilePaths_NodeJS(t *testing.T) {
@@ -239,17 +240,15 @@ func TestBuildEvalPrompt_TruncatesTestOutput(t *testing.T) {
 	}
 }
 
-func TestRunEvalGate_ReturnsErrorWithoutClaude(t *testing.T) {
-	ctx := context.Background()
+func TestRunEvalGate_NoPanic(t *testing.T) {
+	// Verify RunEvalGate doesn't panic even with invalid inputs
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
 	dir := t.TempDir()
 
-	os.WriteFile(filepath.Join(dir, "spec.txt"), []byte("build something"), 0644)
-
-	_, err := RunEvalGate(ctx, dir, filepath.Join(dir, "spec.txt"), "test failed", "", 5)
-	// Should fail because there's no git repo in temp dir
+	// Should return error (no git repo, no claude), not panic
+	_, err := RunEvalGate(ctx, dir, "build something", "test failed", "", 2)
 	if err == nil {
-		t.Log("RunEvalGate succeeded — integration path works")
-	} else {
-		t.Logf("RunEvalGate errored as expected: %v", err)
+		t.Log("RunEvalGate succeeded unexpectedly (claude available)")
 	}
 }
