@@ -882,3 +882,95 @@ The v8-eval runtime evaluator experiment produced a null result (+1.1pp, not sig
 - **Unconditional second pass**: Always run a refinement pass regardless of test results
 - **Specification-aware evaluation**: Compare implementation against task spec, not just test results
 - **Multi-trial validation**: Run 3+ trials per task to get statistically meaningful comparisons
+
+---
+
+## Phase 6: v7 Double-Review Plugin Experiment (2026-03-28)
+
+### Hypothesis
+
+Adding a second code review pass for state-heavy tasks (concurrent operations, constraint propagation, real-time state management) will improve scores on task-queue (+17pp) and analytics-dashboard (+15pp), as validated in the original double-review ablation study (n=3 per task, conclave-double-review-opus).
+
+### Design
+
+Implemented a two-path router in the conclave plugin:
+
+1. **`using-conclave/SKILL.md`** — Added state-heavy detection block. Compound signals (concurrent/async with ordering constraints, real-time updates with side effects, constraint propagation, state machines with invariants) plus supporting keywords (queues, dashboards, WebSockets, etc.). Agent classifies at task start, logs decision.
+
+2. **`requesting-code-review/SKILL.md`** — Added "Second-Pass Review" section. After first review findings are addressed, a second `conclave:code-reviewer` subagent runs with a state-focused prompt: state consistency, constraint propagation, race conditions, edge cases, performance invariants. Explicitly instructs reviewer to verify from scratch, not rubber-stamp the first review.
+
+3. **System prompt** — Adapter uses `--plugin-dir /opt/conclave-plugin` with `CONCLAVE_NON_INTERACTIVE=1`. System prompt tells agent to use skills selectively (TDD for implementation, skip brainstorming/planning) and specifically instructs state-heavy detection and double-review.
+
+### Control
+
+v8-combined-sonnet (prompt-only, no plugin) — the current best at 87-88% from Phase 4. Single trial per task from the 2026-03-26 run.
+
+### Results
+
+| # | Task | Category | v7-plugin | v8-combined | Delta |
+|---|------|----------|-----------|-------------|-------|
+| T1 | time-tracker | simple | 88% | 66% | +22pp |
+| T2 | collab-server | complex | 59% | 60% | -1pp |
+| T3 | fts-search | medium | 100% | 100% | 0 |
+| T4 | phantom-invoice | bugfix | 98% | 98% | 0 |
+| T5 | task-queue | marathon | 61% | 73% | **-12pp** |
+| T6 | monorepo-disaster | recovery | 100% | 100% | 0 |
+| T7 | plugin-marketplace | complex | 91% | 93% | -2pp |
+| T8 | analytics-dashboard | complex | 52% | 52% | 0 |
+| T9 | ssg-toolkit | features | 100% | 100% | 0 |
+| T10 | ecommerce-backend | complex | 89% | 91% | -2pp |
+| T11 | debug-nightmare | bugfix/hard | 100% | 100% | 0 |
+| T12 | constraint-scheduler | algo/hard | 91% | 90% | +1pp |
+| T13 | structural-merge | algo/hard | 94% | 91% | +3pp |
+| T14 | financial-ledger | correctness | 100% | 100% | 0 |
+| T15 | permission-maze | ambiguity | 63% | 75% | **-12pp** |
+| T16 | reactive-spreadsheet | algo/hard | 90% | 89% | +1pp |
+| T17 | circuit-debugger | reasoning | 62% | 86% | **-24pp** |
+| T18 | beam-splitter | reasoning | 94% | 93% | +1pp |
+| T19 | factory-reset | reasoning | 94% | 90% | +4pp |
+
+| Metric | v7-plugin | v8-combined | Delta |
+|--------|-----------|-------------|-------|
+| **Overall avg** | **85.6%** | **87.1%** | **-1.5pp** |
+| State-heavy (T5+T8) | 56.5% | 62.5% | -6pp |
+| Perfect scores (100%) | 7/19 | 7/19 | — |
+| Avg cost/task | ~$2.57 | ~$1.10 | +$1.47 |
+
+### Why the Double-Review Failed
+
+**1. Plugin overhead eats implementation time.**
+The conclave plugin adds substantial overhead: skill loading, TodoWrite tracking, Task-based code review subagent dispatch. On average, plugin tasks used 2.3x more tokens and cost 2.3x more than prompt-only. For time-limited tasks, this overhead directly reduces implementation time.
+
+Evidence: T17 (circuit-debugger) used 2408s of its 2700s limit with 140+ turns — the agent spent significant time on skill ceremony that could have been spent implementing.
+
+**2. The double-review likely never fired.**
+The adapter instructs the agent to detect state-heavy tasks and run a second review. But there's no evidence in the metrics that a second review actually occurred on T5 or T8. The `Task` tool appears in tools_used (indicating subagent dispatch), but the agent may have used it for the standard single review rather than a second pass. The state-heavy detection is a soft instruction — the agent may not have classified these tasks as state-heavy, or may have run out of time/context before reaching the second review step.
+
+**3. The original validation used Opus, not Sonnet.**
+The +15-17pp double-review validation (conclave-double-review-opus, n=3) used Opus 4.6. This experiment used Sonnet 4.6. Sonnet may not benefit as much from a second review pass — the review quality delta between one Sonnet review and two may be smaller than between one Opus review and two.
+
+**4. The original validation used a different review mechanism.**
+The original double-review adapter dispatched two separate `conclave consensus` reviews (multi-agent). This experiment's double-review uses the `conclave:code-reviewer` subagent (single-agent Task dispatch). The review quality and coverage may differ substantially.
+
+**5. Single-trial noise remains high.**
+T1 swung +22pp, T17 swung -24pp — both likely noise. Without 3+ trials per task, individual task deltas are unreliable. Only aggregate trends across many tasks are meaningful, and the aggregate shows -1.5pp.
+
+### Lessons Learned
+
+1. **Plugin overhead is a real cost.** The conclave plugin adds ~$1.50/task in token overhead. For benchmark tasks with time limits, this overhead competes directly with implementation time. The v8-combined prompt-only approach delivers the methodology benefits without the infrastructure cost.
+
+2. **Soft instructions don't reliably trigger complex workflows.** Telling an agent "detect state-heavy tasks and run a second review" via system prompt is too indirect. The agent may not classify correctly, may forget the instruction, or may run out of context before reaching the second review step. Hard-wired multi-pass architectures (like the v8-eval two-pass adapter) are more reliable triggers.
+
+3. **Don't assume cross-model transferability.** The double-review was validated with Opus. The same intervention with Sonnet produced no benefit and possibly a regression. Model-specific behaviors matter.
+
+4. **Prompt-only beats plugin for benchmarks.** The v8-combined system prompt captures the essential methodology (contract, TDD, self-review) in ~500 tokens. The plugin achieves the same methodology at 10-100x the token cost. For single-session benchmark tasks, prompt-only wins.
+
+5. **The plugin's value is in interactive development, not benchmarks.** Conclave's skills shine in multi-session, human-in-the-loop development where the agent benefits from structured workflows, context management, and incremental verification. Benchmarks test single-shot autonomous execution — a different regime where lean prompts dominate.
+
+### Conclusions
+
+The v7 double-review plugin experiment produced a **negative result (-1.5pp)** against the v8-combined prompt-only baseline. The state-heavy targets (task-queue, analytics-dashboard) showed no improvement — task-queue regressed by 12pp.
+
+**v8-combined (prompt-only) remains the benchmark champion at 87-88%.** The conclave plugin adds methodology value for interactive development but hurts benchmark performance through overhead.
+
+The double-review concept may still have merit, but would need to be implemented as a hard-wired multi-pass architecture (like the v8-eval adapter pattern) rather than a soft skill instruction. A prompt-only "v9-double-review" that runs two `claude -p` passes with a review step between them — no plugin, no skill overhead — would be the right way to test this hypothesis.
