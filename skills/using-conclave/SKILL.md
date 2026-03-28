@@ -26,6 +26,28 @@ When you receive a task, classify it and invoke the matching skill:
 2. Invoke ONE skill at a time (skills chain to the next when needed)
 3. After implementation, the Completion Gate applies (see below)
 
+## State-Heavy Task Detection
+
+After classifying the task type (above), check if it also involves complex state management.
+
+**Compound signals (any ONE is sufficient):**
+- Concurrent/async operations with ordering constraints
+- Real-time updates where one operation's side effects affect others
+- Constraint propagation (changing one value must update dependents)
+- State machine with multiple transitions that must maintain invariants
+
+**Supporting keywords (need 2+ alongside a compound signal):**
+queues, dashboards, WebSockets, state machines, schedulers, concurrent, real-time
+
+**When in doubt, classify as state-heavy.** The cost of a false positive is ~$0.40
+for an extra review pass. The cost of a false negative is -15pp on a hard task.
+
+**Decision point:** The agent reading this skill makes the classification at task start,
+before invoking the first skill. Log the decision: "State-heavy: yes/no — [reason]".
+
+If state-heavy: after implementation and first code review, run a SECOND
+code review (see requesting-code-review skill, "Second-Pass Review").
+
 ## Completion Gate
 
 **After ALL implementation work** — before claiming done, moving to next task, or committing:
