@@ -148,11 +148,18 @@ func runRalphRun(cmd *cobra.Command, args []string) error {
 		}
 
 		if implErr != nil {
-			fmt.Fprintf(os.Stderr, "  Implementation failed: %v\n", implErr)
-			sm.Update("implement", 1, iterationOutput)
-			continue
+			fmt.Fprintf(os.Stderr, "  Implementation exited with error: %v\n", implErr)
+			// Check if code was written despite non-zero exit (rate limits, session limits, etc.)
+			status, statusErr := g.StatusPorcelain()
+			if statusErr != nil || strings.TrimSpace(status) == "" {
+				fmt.Fprintln(os.Stderr, "  No file changes detected, skipping to next iteration")
+				sm.Update("implement", 1, iterationOutput)
+				continue
+			}
+			fmt.Fprintln(os.Stderr, "  File changes detected despite error, proceeding to test gate")
+		} else {
+			fmt.Fprintln(os.Stderr, "  Implementation complete")
 		}
-		fmt.Fprintln(os.Stderr, "  Implementation complete")
 
 		// Gate 2: Tests
 		fmt.Fprintln(os.Stderr, "Gate 2: Tests...")
