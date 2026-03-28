@@ -766,3 +766,119 @@ The combined prompt merges contract (step 2: write CONTRACT.md) with mandatory T
    - Why does v8 eliminate crashes? Is it prompt length, structure, or specific phrasing?
    - Can v8-eval (runtime evaluator) push the remaining hard tasks (collab-server ~58%) further?
    - Is there a v9 that adapts prompt intensity per task difficulty?
+
+---
+
+## Phase 5: v8-eval — Runtime Evaluator Experiment (2026-03-28)
+
+### Hypothesis
+
+Adding a runtime evaluator (separate diagnostic agent that analyzes test failures and provides structured feedback) to v8-combined will improve scores on hard tasks where the single-shot approach struggles. Based on the Anthropic harness design paper's finding that runtime evaluation is the strongest remaining lever.
+
+### Design
+
+Built a generator-evaluator system with two approaches tested:
+
+**Approach A: Ralph-loop integration (abandoned)**
+Extended the `conclave ralph-run` autonomous retry loop with an `--eval` flag. After test failure, a separate `claude -p` evaluator receives the task spec, test output, and relevant source files (collected via git diff + stack trace regex extraction), producing structured diagnostic feedback (Failing Tests, Unmet Requirements, Priority Fix, Suggested Approach). The feedback is injected into `.ralph_context.md` for the next iteration.
+
+**Approach B: Two-pass adapter (tested)**
+- Pass 1: Full `claude -p` implementation (identical to v8-combined-sonnet)
+- Test check: Run project test suite to detect failures
+- If tests fail: Evaluator diagnoses failures, then Pass 2 runs a fresh `claude -p` with evaluator feedback + instruction to fix existing code (not rewrite)
+
+### Implementation
+
+New Go code in `internal/ralph/eval.go`:
+- `ExtractFilePathsFromOutput()` — regex extraction of file paths from Node.js, Python, Go stack traces
+- `CollectRelevantFiles()` — priority-sorted file collection (both diff+trace > diff-only > trace-only), filtered for binary/vendor/traversal, capped at 8000 lines
+- `BuildEvalPrompt()` — structured diagnostic prompt with 200-line test output truncation
+- `RunEvalGate()` — orchestrates file collection, prompt building, and `claude -p` evaluator call via stdin
+
+New CLI flags on `conclave ralph-run`: `--eval`, `--eval-model`, `--eval-timeout`, `--system-prompt`
+
+Also fixed ralph-loop to proceed to test gate on non-zero `claude -p` exit (checks `git status --porcelain` for file changes instead of treating all non-zero exits as failures).
+
+### Results: Ralph-Loop Approach (Abandoned)
+
+Multiple attempts with the ralph-loop adapter failed due to fundamental architecture issues:
+
+1. **Fresh context problem**: Each `claude -p` iteration starts with zero memory of prior work. The TDD preamble causes Claude to write tests from scratch each iteration, potentially overwriting implementation from the previous run.
+
+2. **Exit code misinterpretation**: `claude -p` frequently exits non-zero (session limits, tool errors) even after writing working code. Ralph-loop originally treated this as "implementation failed" and skipped the test gate entirely. Fixed by checking `git status --porcelain` for actual file changes.
+
+3. **Time budget exhaustion**: With 3 iterations × implementation timeout, the container time limit kills tasks before they complete. The evaluator adds ~2 min per cycle, further reducing available implementation time.
+
+4. **Net effect**: Scores were identical to single-shot because only iteration 1's code mattered — iterations 2-3 either overwrote it or got killed.
+
+### Results: Two-Pass Adapter
+
+| Variant | Tasks | Avg Score | Avg Cost | Crashes |
+|---------|-------|-----------|----------|---------|
+| **v8-eval-sonnet (two-pass)** | 19 | **88.2%** | — | 0 |
+| **v8-combined-sonnet (control)** | 19 | **87.1%** | — | 0 |
+| **Delta** | | **+1.1pp** | | |
+
+**Pass 2 fired: 0 out of 19 tasks.**
+
+### Per-Task Comparison
+
+| Task | Control | Eval | Delta |
+|------|---------|------|-------|
+| analytics-dashboard | 55% | 52% | -3pp |
+| beam-splitter | 91% | 93% | +3pp |
+| circuit-debugger | 77% | 86% | +9pp |
+| collab-server | 62% | 60% | -2pp |
+| constraint-scheduler | 94% | 90% | -3pp |
+| debug-nightmare | 100% | 100% | 0 |
+| ecommerce-backend | 95% | 91% | -3pp |
+| factory-reset | 93% | 90% | -4pp |
+| financial-ledger | 100% | 100% | 0 |
+| fts-search | 100% | 100% | 0 |
+| monorepo-disaster | 100% | 100% | 0 |
+| permission-maze | 74% | 75% | +1pp |
+| phantom-invoice | 98% | 98% | 0 |
+| plugin-marketplace | 92% | 93% | +1pp |
+| reactive-spreadsheet | 93% | 89% | -4pp |
+| ssg-toolkit | 100% | 100% | 0 |
+| structural-merge | 93% | 91% | -2pp |
+| task-queue | 72% | 73% | +1pp |
+| time-tracker | 66% | 93% | +27pp |
+
+The +1.1pp delta is within normal single-trial variance. The time-tracker +27pp and circuit-debugger +9pp are noise, not evaluator signal — pass 2 never fired on any task.
+
+### Why the Evaluator Had Zero Impact
+
+**The agent's own tests pass even when Thunderdome's hidden validation tests fail.** The two-pass adapter checks `npm test` (the project's test suite) to decide whether to trigger pass 2. But:
+
+1. The agent writes its own tests during pass 1
+2. Those tests pass because the agent wrote them to match its implementation
+3. Thunderdome scores against separate *hidden* validation tests the agent never sees
+4. Since the agent's tests pass, pass 2 never triggers
+
+The evaluator is architecturally sound but has a **trigger problem**: it can only detect failures the agent can detect, and the agent can't see the validation tests that determine its score.
+
+### Lessons Learned
+
+1. **Ralph-loop doesn't work for benchmarks.** Fresh `claude -p` contexts lose all state between iterations. The retry model assumes each iteration builds on prior work, but without shared context, each iteration starts over. This is a fundamental mismatch.
+
+2. **Exit code tolerance matters.** `claude -p` exits non-zero for many non-fatal reasons (rate limits, tool errors, session limits). Any system wrapping `claude -p` must check for actual work product (file changes) rather than relying on exit codes.
+
+3. **Self-written tests are a weak signal.** Agents write tests that pass their own implementation. To detect real quality issues, you need external test suites or specification-based validation — which is exactly what Thunderdome's hidden tests provide, but those aren't available during execution.
+
+4. **The evaluator concept needs a different trigger.** Instead of "tests fail," potential triggers:
+   - Specification coverage analysis (does the code address all spec requirements?)
+   - Static analysis or complexity thresholds
+   - Always run pass 2 (unconditional second pass for refinement)
+   - Expose a subset of validation criteria to the evaluator
+
+5. **Single-trial noise is real.** time-tracker swung from 66% to 93% between control and eval runs with no evaluator involvement. Any experiment comparing single trials needs multiple trials per task to distinguish signal from noise.
+
+### Conclusions
+
+The v8-eval runtime evaluator experiment produced a null result (+1.1pp, not significant, evaluator never triggered). The evaluator Go implementation is correct and well-tested, but the benchmark architecture prevents it from firing: agents write passing tests for their own code, so the failure-triggered evaluator has nothing to evaluate.
+
+**v8-combined remains the best prompt at 87-88%** for both Sonnet and Opus. The next lever is unlikely to be runtime evaluation (at least not failure-triggered). More promising directions:
+- **Unconditional second pass**: Always run a refinement pass regardless of test results
+- **Specification-aware evaluation**: Compare implementation against task spec, not just test results
+- **Multi-trial validation**: Run 3+ trials per task to get statistically meaningful comparisons
