@@ -974,3 +974,128 @@ The v7 double-review plugin experiment produced a **negative result (-1.5pp)** a
 **v8-combined (prompt-only) remains the benchmark champion at 87-88%.** The conclave plugin adds methodology value for interactive development but hurts benchmark performance through overhead.
 
 The double-review concept may still have merit, but would need to be implemented as a hard-wired multi-pass architecture (like the v8-eval adapter pattern) rather than a soft skill instruction. A prompt-only "v9-double-review" that runs two `claude -p` passes with a review step between them — no plugin, no skill overhead — would be the right way to test this hypothesis.
+
+---
+
+## Phase 7: v9 Review-Slim — Hard-Wired Unconditional Review (2026-03-28)
+
+### Hypothesis
+
+A hard-wired two-pass adapter (implement, then unconditional review+fix in a fresh `claude -p`) will outperform single-shot v8-combined by catching correctness issues the self-review step misses. No plugin overhead, no detection heuristic — pass 2 always fires.
+
+This tests the Phase 6 conclusion that the double-review concept needs a hard-wired architecture rather than a soft skill instruction.
+
+### Design
+
+**v9-review-slim-sonnet** — two sequential `claude -p` invocations, no plugin:
+
+- **Pass 1**: Identical to v8-combined-sonnet (contract + TDD + adversarial self-review). Full implementation.
+- **Pass 2**: Unconditional. Fresh `claude -p` with the original task spec and instructions to:
+  1. Read all source and test files
+  2. Run the test suite, build, and lint
+  3. Review as a hostile reviewer with 8 specific focus areas: state consistency, constraint propagation, race conditions, edge cases, missing requirements, test gaps, off-by-one errors, error handling
+  4. Fix every issue found (test-first for each fix)
+  5. Re-verify everything passes
+
+Key design choices:
+- **No plugin** — uses `thunderdome/claude-code:latest`, not the conclave image. Zero skill overhead.
+- **Unconditional** — pass 2 always runs. No detection heuristic to misfire.
+- **Fresh context** — pass 2 starts clean, no pollution from implementation decisions. Reviews the code as an outsider.
+- **Review+fix combined** — single pass 2 invocation both identifies and fixes issues, saving one API round-trip vs a 3-pass approach.
+
+### Control
+
+v8-combined-sonnet (single-shot, prompt-only) from the 2026-03-26 run. Single trial per task.
+
+### Results
+
+| # | Task | Category | v9-slim | v8-combined | Delta |
+|---|------|----------|---------|-------------|-------|
+| T1 | time-tracker | simple | 89% | 66% | +23pp |
+| T2 | collab-server | complex | 54% | 60% | -6pp |
+| T3 | fts-search | medium | 100% | 100% | 0 |
+| T4 | phantom-invoice | bugfix | 98% | 98% | 0 |
+| T5 | task-queue | marathon | 63% | 73% | **-10pp** |
+| T6 | monorepo-disaster | recovery | 100% | 100% | 0 |
+| T7 | plugin-marketplace | complex | 90% | 93% | -3pp |
+| T8 | analytics-dashboard | complex | 59% | 52% | **+7pp** |
+| T9 | ssg-toolkit | features | 100% | 100% | 0 |
+| T10 | ecommerce-backend | complex | 92% | 91% | +1pp |
+| T11 | debug-nightmare | bugfix/hard | 100% | 100% | 0 |
+| T12 | constraint-scheduler | algo/hard | 92% | 90% | +2pp |
+| T13 | structural-merge | algo/hard | 86% | 91% | -5pp |
+| T14 | financial-ledger | correctness | 100% | 100% | 0 |
+| T15 | permission-maze | ambiguity | 80% | 75% | **+5pp** |
+| T16 | reactive-spreadsheet | algo/hard | 89% | 89% | 0 |
+| T17 | circuit-debugger | reasoning | 80% | 86% | -6pp |
+| T18 | beam-splitter | reasoning | 94% | 93% | +1pp |
+| T19 | factory-reset | reasoning | 94% | 90% | +4pp |
+
+| Metric | v9-slim | v8-combined | v7-plugin |
+|--------|---------|-------------|-----------|
+| **Overall avg** | **87.4%** | **87.1%** | **85.6%** |
+| **Delta vs v8** | **+0.3pp** | — | -1.5pp |
+| State-heavy (T5+T8) | 61.0% | 62.5% | 56.5% |
+| Perfect scores | 7/19 | 7/19 | 7/19 |
+| T19 status | timeout | completed | completed |
+
+### Analysis
+
+**The unconditional review pass is aggregate-neutral (+0.3pp).** It helps some tasks and hurts others by roughly equal amounts. This is a null result — the review pass doesn't reliably improve code quality as measured by hidden validation tests.
+
+**Where the review helped:**
+- T8 (analytics-dashboard): +7pp — the review likely caught a state management bug
+- T15 (permission-maze): +5pp — the review may have caught a missing requirement
+- T19 (factory-reset): +4pp — despite timing out during pass 2, pass 1 was strong
+
+**Where the review hurt:**
+- T5 (task-queue): -10pp — pass 2 may have introduced regressions while "fixing" correct code
+- T2 (collab-server): -6pp — same risk: review pass changes working code
+- T17 (circuit-debugger): -6pp — time spent on review reduced pass 1 implementation time
+- T13 (structural-merge): -5pp — review-introduced regression
+
+**The review pass can make things worse.** When the implementation is already correct (or close), the review pass risks introducing regressions by "fixing" code that isn't broken. The reviewer operates on the same information as the implementer — it can't see the hidden validation tests either. It may identify false issues and apply harmful changes.
+
+### Comparison Across All Three Variants
+
+| Variant | Architecture | Overall | Cost | State-Heavy |
+|---------|-------------|---------|------|-------------|
+| v8-combined | Single `claude -p`, prompt-only | **87.1%** | ~$1.10/task | 62.5% |
+| v9-review-slim | Two `claude -p`, prompt-only | **87.4%** | ~$1.80/task | 61.0% |
+| v7-double-review | Single `claude -p` + plugin | **85.6%** | ~$2.57/task | 56.5% |
+
+v9-slim is +0.3pp over v8-combined at +64% cost. v7-plugin is -1.5pp at +134% cost. Neither justifies the additional spend.
+
+### Why the +15-17pp Opus Result Doesn't Replicate
+
+The original double-review validation (conclave-double-review-opus, n=3) showed +15-17pp on T5 and T8. Three possible explanations for why it doesn't replicate:
+
+1. **Model difference.** The original used Opus 4.6 for both implementation and review. Opus may produce qualitatively different (better) reviews than Sonnet. The review quality delta between one Sonnet review and two Sonnet reviews may be much smaller than between one Opus review and two Opus reviews.
+
+2. **Review mechanism difference.** The original used `conclave consensus` (multi-agent: Claude + Gemini + Codex reviewing in parallel, chairman synthesis). This experiment used a single Sonnet reviewer. Multi-agent review may catch issues that a single-model reviewer misses because different models have different blind spots.
+
+3. **Sample size.** The original n=3 showed high variance (2/3 trials scored 88-95%, 1/3 scored 52-64%). With such small samples, the +15-17pp mean could be a lucky draw. Our single-trial results are equally noisy in the other direction.
+
+### Lessons Learned
+
+1. **Review passes are double-edged.** A review pass can improve or degrade code with roughly equal probability when the reviewer has no more information than the implementer. The "hostile reviewer" framing may cause the agent to find and "fix" non-issues.
+
+2. **Hard-wired beats soft, but neither beats single-shot.** v9-slim (hard-wired, always fires) outperformed v7-plugin (soft instruction, plugin overhead) by 1.8pp. But neither beat the lean single-shot v8-combined approach. The overhead of any multi-pass approach — even minimal — isn't justified by the quality gains.
+
+3. **The original Opus double-review result needs replication.** Before investing further in review architectures, the +15-17pp Opus result should be replicated with fresh trials. If it holds, the lever is Opus review quality (or multi-agent review), not the two-pass architecture itself.
+
+4. **Cost efficiency matters.** v8-combined delivers 87.1% at ~$1.10/task. v9-slim delivers 87.4% at ~$1.80/task. That's $0.70 per task for +0.3pp — not cost-effective. For the same budget, running 1.6x more single-shot trials would provide more statistical confidence.
+
+### Conclusions
+
+The v9 review-slim experiment produced a **null result (+0.3pp)**, confirming that an unconditional review+fix pass does not reliably improve scores over single-shot v8-combined. The review pass helps ~4 tasks and hurts ~4 tasks by similar margins, netting to zero.
+
+**v8-combined (single-shot, prompt-only) remains the benchmark champion at 87-88%.** Three attempts to beat it have failed:
+- Phase 5: v8-eval (failure-triggered evaluator) — +1.1pp null, evaluator never triggered
+- Phase 6: v7-plugin (skill-based double-review) — -1.5pp regression from plugin overhead
+- Phase 7: v9-slim (hard-wired unconditional review) — +0.3pp null, review helps and hurts equally
+
+**The remaining levers to explore:**
+- **Opus review**: Replicate the original +15-17pp result with Opus. If it holds, the lever is model capability for review, not architecture.
+- **Multi-agent review**: Test whether Claude+Gemini+Codex consensus review catches issues a single Sonnet reviewer misses.
+- **Multi-trial validation**: Run 3+ trials per task for any future experiment. Single-trial comparisons are too noisy for <5pp effects.
