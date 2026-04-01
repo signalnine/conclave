@@ -1099,3 +1099,168 @@ The v9 review-slim experiment produced a **null result (+0.3pp)**, confirming th
 - **Opus review**: Replicate the original +15-17pp result with Opus. If it holds, the lever is model capability for review, not architecture.
 - **Multi-agent review**: Test whether Claude+Gemini+Codex consensus review catches issues a single Sonnet reviewer misses.
 - **Multi-trial validation**: Run 3+ trials per task for any future experiment. Single-trial comparisons are too noisy for <5pp effects.
+
+---
+
+## Phase 8: Prompt Ablation Study (2026-03-31)
+
+### Hypothesis
+
+The v8-combined system prompt has 6 components. Which ones actually contribute to the 87-88% score? If some are dead weight, removing them could reduce cost without hurting quality.
+
+### Method
+
+**Gene ablation:** Remove one component at a time from v8-combined and measure the effect. Plus a "bare" control with all methodology removed.
+
+| Variant | Removed Component | Kept |
+|---------|------------------|------|
+| no-contract | Steps 2+5 (Contract + Verify Contract) | Understand, TDD, Boil, Self-Review |
+| no-tdd | Step 3 (Test-First Development) | Understand, Contract, Boil, Verify, Self-Review |
+| no-boil | Step 4 (Boil the Lake / completeness) | Understand, Contract, TDD, Verify, Self-Review |
+| no-review | Step 6 (Adversarial Self-Review) | Understand, Contract, TDD, Boil, Verify |
+| bare | Steps 2-6 (all methodology) | Understand only + "implement and verify" |
+
+**Task selection:** 10 tasks spanning all categories and difficulty levels, chosen for score variance (not ceiling/floor tasks):
+T1 (time-tracker), T2 (collab-server), T5 (task-queue), T7 (plugin-marketplace), T8 (analytics-dashboard), T12 (constraint-scheduler), T15 (permission-maze), T16 (reactive-spreadsheet), T17 (circuit-debugger), T19 (factory-reset)
+
+**Trials:** 1 per variant per task (50 total runs). Duration: ~7 hours.
+
+### Ablation Results (50 trials)
+
+| Variant | Mean Score | Delta vs baseline | Mean Cost | Cost Delta |
+|---------|-----------|-------------------|-----------|------------|
+| **baseline (v8-combined)** | **0.774** | -- | **~$1.10** | -- |
+| no-contract | 0.783 | +0.9pp | $1.01 | -8% |
+| no-tdd | 0.791 | +1.7pp | $0.84 | -24% |
+| no-boil | 0.796 | +2.2pp | $1.43 | +30% |
+| **no-review** | **0.799** | **+2.5pp** | **$0.74** | **-33%** |
+| bare | 0.732 | -4.2pp | $0.94 | -15% |
+
+**Per-task detail:**
+
+| Task | baseline | no-contract | no-tdd | no-boil | no-review | bare |
+|------|----------|-------------|--------|---------|-----------|------|
+| T1 (time-tracker) | 0.66 | 0.90 | 0.97 | 0.90 | 0.92 | 0.87 |
+| T2 (collab-server) | 0.60 | 0.65 | 0.56 | 0.61 | 0.60 | 0.56 |
+| T5 (task-queue) | 0.73 | 0.68 | 0.74 | 0.74 | 0.71 | 0.58 |
+| T7 (plugin-mktplace) | 0.93 | 0.91 | 0.95 | 0.91 | 0.90 | 0.91 |
+| T8 (analytics-dash) | 0.52 | 0.56 | **0.28** | 0.64 | 0.53 | **0.28** |
+| T12 (constraint-sched) | 0.90 | 0.89 | 0.91 | 0.91 | 0.91 | 0.91 |
+| T15 (permission-maze) | 0.75 | 0.61 | 0.77 | 0.77 | 0.74 | 0.74 |
+| T16 (reactive-spread) | 0.89 | 0.87 | 0.91 | 0.92 | 0.92 | 0.91 |
+| T17 (circuit-debug) | 0.86 | 0.86 | 0.87 | **0.64** | 0.86 | **0.68** |
+| T19 (factory-reset) | 0.90 | 0.90 | 0.95 | 0.92 | 0.90 | 0.88 |
+
+### Key Ablation Findings
+
+1. **No single gene removal hurts.** Removing any one of Contract, TDD, Boil the Lake, or Self-Review produces scores at or above baseline. The methodology's value is collective -- the genes are redundant/overlapping rather than independently contributing.
+
+2. **Removing ALL methodology hurts (-4.2pp).** The `bare` variant clearly degrades on complex tasks: T5 (-15pp), T8 (-24pp), T17 (-18pp). The prompt methodology provides real value in aggregate.
+
+3. **TDD has hidden value on hard state tasks.** Both `no-tdd` and `bare` scored 0.28 on T8 (analytics-dashboard) -- 0.000 agent tests, 0.000 coverage. Without TDD instruction, the agent wrote no tests on the hardest state-management task. But TDD removal was neutral or positive on 9/10 other tasks.
+
+4. **"Boil the Lake" matters for reasoning tasks.** `no-boil` dropped T17 (circuit-debugger) from 0.86 to 0.64. The completeness instruction matters specifically for reasoning/hard tasks where the agent might otherwise stop at a partial solution.
+
+5. **Self-review is dead weight.** `no-review` scored highest (+2.5pp) at lowest cost (-33%). No individual task was hurt by removing self-review.
+
+6. **T1 baseline (0.66) was a bad roll.** Every ablation variant scored 0.87-0.97 on T1. This inflated all delta-vs-baseline numbers. Single-trial ablation results must be interpreted cautiously.
+
+### Validation: no-review Full Suite (76 trials)
+
+Based on ablation results, `no-review` was selected for full validation: 19 tasks x 2 trials x 2 runs.
+
+**Run 1 (38 trials):**
+
+| Task | Trial 1 | Trial 2 | Mean |
+|------|---------|---------|------|
+| T1 | 0.93 | 0.68 | 0.805 |
+| T2 | 0.58 | 0.62 | 0.600 |
+| T3 | 1.00 | 1.00 | 1.000 |
+| T4 | 0.98 | 0.98 | 0.980 |
+| T5 | 0.75 | 0.61 | 0.680 |
+| T6 | 1.00 | 1.00 | 1.000 |
+| T7 | 0.90 | 0.90 | 0.900 |
+| T8 | 0.54 | 0.57 | 0.555 |
+| T9 | 1.00 | 1.00 | 1.000 |
+| T10 | 0.93 | 0.96 | 0.945 |
+| T11 | 1.00 | 1.00 | 1.000 |
+| T12 | 0.83 | 0.91 | 0.870 |
+| T13 | 0.94 | 0.93 | 0.935 |
+| T14 | 1.00 | 1.00 | 1.000 |
+| T15 | 0.64 | 0.78 | 0.710 |
+| T16 | 0.88 | 0.91 | 0.895 |
+| T17 | 0.66 | 0.79 | 0.725 |
+| T18 | 0.90 | 0.94 | 0.920 |
+| T19 | 0.91 | 0.93 | 0.920 |
+| **Mean** | | | **0.865** |
+| **Cost** | | | **$0.85/task** |
+
+**Run 2 (38 trials):**
+
+| Task | Trial 1 | Trial 2 | Mean |
+|------|---------|---------|------|
+| T1 | 0.93 | 0.66 | 0.795 |
+| T2 | 0.61 | 0.60 | 0.605 |
+| T3 | 1.00 | 1.00 | 1.000 |
+| T4 | 0.98 | 0.98 | 0.980 |
+| T5 | 0.61 | 0.72 | 0.665 |
+| T6 | 1.00 | 1.00 | 1.000 |
+| T7 | 0.91 | 0.91 | 0.910 |
+| T8 | 0.54 | 0.54 | 0.540 |
+| T9 | 1.00 | 1.00 | 1.000 |
+| T10 | 0.86 | 0.80 | 0.830 |
+| T11 | 1.00 | 1.00 | 1.000 |
+| T12 | 0.86 | 0.88 | 0.870 |
+| T13 | 0.89 | 0.93 | 0.910 |
+| T14 | 1.00 | 1.00 | 1.000 |
+| T15 | 0.80 | 0.78 | 0.790 |
+| T16 | 0.90 | 0.90 | 0.900 |
+| T17 | 0.95 | 0.67 | 0.810 |
+| T18 | 0.95 | 0.90 | 0.925 |
+| T19 | 0.93 | 0.95 | 0.940 |
+| **Mean** | | | **0.867** |
+| **Cost** | | | **$0.69/task** |
+
+**Combined (76 trials):**
+
+| Metric | Run 1 | Run 2 | Combined | v8-combined baseline |
+|--------|-------|-------|----------|---------------------|
+| Mean score | 0.865 | 0.867 | **0.866** | 0.874 |
+| Cost/task | $0.85 | $0.69 | **$0.77** | ~$1.10 |
+
+### Stability Analysis
+
+Per-task 4-trial means (combining both runs) show high consistency:
+
+| Stability tier | Tasks | 4-trial mean |
+|---------------|-------|-------------|
+| Perfect (1.00) | T3, T6, T9, T11, T14 | 1.000 |
+| Near-perfect | T4 | 0.980 |
+| Strong (>0.90) | T7, T10, T13, T18, T19 | 0.91-0.93 |
+| Solid (0.85-0.90) | T12, T16 | 0.87-0.90 |
+| Variable (0.70-0.85) | T1, T15, T17 | 0.75-0.80 |
+| Consistently hard | T2, T5, T8 | 0.55-0.67 |
+
+The high-variance tasks (T1, T15, T17) show 15-30pp swings between trials -- these are inherently noisy regardless of methodology.
+
+### Conclusions
+
+**The "Adversarial Self-Review" step (step 6) should be removed from the v8-combined prompt.**
+
+- Quality impact: -0.8pp (0.866 vs 0.874) -- within noise, statistically indistinguishable across 76 trials
+- Cost savings: 30% ($0.77 vs $1.10 per task)
+- Stability: Extremely consistent across two independent full-suite runs (0.865 vs 0.867)
+- No individual task consistently harmed by removal
+
+The self-review step costs ~$0.33/task in extra tokens and delivers no measurable quality benefit. It may slightly hurt by burning context on second-guessing correct implementations.
+
+**The remaining 5 steps (Understand, Contract, TDD, Boil the Lake, Verify Contract) form a redundant but collectively valuable methodology.** No single step is individually necessary (ablation shows neutral-to-positive removal), but removing all of them degrades scores by 4.2pp. This is consistent with the "belt and suspenders" model -- each step partially covers for failures in the others.
+
+**Recommended v10 prompt:** Steps 1-5 only (drop step 6). Expected performance: 86-87% at ~$0.77/task.
+
+### Remaining Levers
+
+1. **Prompt compression**: The 5 remaining steps could potentially be condensed without losing their collective value. Shorter prompts = fewer input tokens = lower cost.
+2. **Task-adaptive methodology**: TDD matters most for T8-type state tasks, Boil the Lake for T17-type reasoning tasks. A routing layer that applies methodology selectively could improve cost-efficiency further.
+3. **Multi-trial confidence**: T1, T15, T17 have 15-30pp trial variance. For production use, running 2 trials and taking the better result ("best-of-2") would significantly improve expected scores on variable tasks.
+4. **Model upgrades**: Testing with newer Sonnet versions as they release -- the methodology may interact differently with improved base capabilities.
