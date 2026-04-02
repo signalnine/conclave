@@ -1264,3 +1264,88 @@ The self-review step costs ~$0.33/task in extra tokens and delivers no measurabl
 2. **Task-adaptive methodology**: TDD matters most for T8-type state tasks, Boil the Lake for T17-type reasoning tasks. A routing layer that applies methodology selectively could improve cost-efficiency further.
 3. **Multi-trial confidence**: T1, T15, T17 have 15-30pp trial variance. For production use, running 2 trials and taking the better result ("best-of-2") would significantly improve expected scores on variable tasks.
 4. **Model upgrades**: Testing with newer Sonnet versions as they release -- the methodology may interact differently with improved base capabilities.
+
+---
+
+## Phase 9: Model Routing with Haiku Classifier (2026-04-02)
+
+### Hypothesis
+
+Opus outperforms Sonnet by +1.5pp on the no-review prompt, but the gain concentrates on hard tasks (T8 +9pp, T10 +10pp, T17 +13pp). Easy/medium tasks show identical scores. A classifier that routes hard tasks to Opus and easy tasks to Sonnet should achieve Opus-level quality at lower cost.
+
+### Method
+
+**v10-routed adapter:** Before implementation, calls Haiku (`claude-haiku-4-5-20251001`) with the task description to classify as HARD or EASY. HARD routes to Opus, EASY routes to Sonnet. Same no-review prompt (steps 1-5) for both models.
+
+**Haiku routing prompt criteria for HARD:**
+- Complex state management with multiple interacting components
+- Concurrent/async operations with ordering constraints
+- Algorithmic reasoning (scheduling, constraint solving, graph traversal)
+- Ambiguous specifications requiring significant inference
+- Multiple subsystems that must coordinate
+- Complex data transformations with edge cases
+
+**Baseline comparisons:**
+- Sonnet no-review: 0.866 at $0.77/task (76 trials)
+- Opus no-review: 0.881 at $1.26/task (38 trials)
+- Oracle optimal routing: 0.888 at $0.90/task (computed from per-task best model)
+
+### Results (38 trials)
+
+**Aggregate:**
+
+| Variant | Mean Score | Cost/task | % Opus |
+|---------|-----------|-----------|--------|
+| Sonnet no-review | 0.866 | $0.77 | 0% |
+| Opus no-review | 0.881 | $1.26 | 100% |
+| Oracle optimal | 0.888 | $0.90 | 26% |
+| **v10-routed** | **0.899** | **$1.20** | **87%** |
+
+**Per-task detail:**
+
+| Task | Sonnet (4-trial) | Opus (2-trial) | Routed (2-trial) | Route |
+|------|-----------------|----------------|------------------|-------|
+| T1 (time-tracker) | 0.80 | 0.77 | 0.81 | EASY |
+| T2 (collab-server) | 0.60 | 0.57 | 0.58 | HARD |
+| T3 (features/medium) | 1.00 | 1.00 | 1.00 | HARD* |
+| T4 (bugfix/medium) | 0.98 | 0.98 | 0.98 | EASY |
+| T5 (task-queue) | 0.67 | 0.67 | 0.61 | HARD |
+| T6 (recovery) | 1.00 | 1.00 | 1.00 | EASY/HARD** |
+| T7 (plugin-mktplace) | 0.91 | 0.93 | 0.93 | HARD |
+| T8 (analytics-dash) | 0.55 | 0.64 | **0.85** | HARD |
+| T9 (correctness) | 1.00 | 1.00 | 1.00 | HARD* |
+| T10 (features/complex) | 0.89 | 0.99 | 0.98 | HARD |
+| T11 (greenfield/complex) | 1.00 | 1.00 | 1.00 | HARD* |
+| T12 (constraint-sched) | 0.87 | 0.93 | 0.93 | HARD |
+| T13 (bugfix/hard) | 0.92 | 0.88 | 0.93 | HARD |
+| T14 (algorithmic) | 1.00 | 1.00 | 1.00 | HARD* |
+| T15 (permission-maze) | 0.75 | 0.78 | 0.79 | HARD |
+| T16 (reactive-spread) | 0.90 | 0.91 | 0.94 | HARD |
+| T17 (circuit-debug) | 0.77 | 0.90 | 0.89 | HARD |
+| T18 (reasoning) | 0.92 | 0.93 | 0.96 | HARD |
+| T19 (factory-reset) | 0.93 | 0.90 | 0.93 | HARD |
+
+\* Over-routed: these tasks score 1.00 with Sonnet, Opus adds cost but not quality.
+\** Mixed routing across trials.
+
+### Analysis
+
+**v10-routed is our new best score (0.899)** -- beating pure Opus (0.881) by +1.8pp and Sonnet (0.866) by +3.3pp.
+
+**The T8 anomaly:** Analytics-dashboard jumped from 0.55 (Sonnet) / 0.64 (Opus) to 0.85 (routed). This 21pp gain over Sonnet is larger than Opus alone achieves. Possible explanations: (1) favorable trial variance, (2) the Haiku classification step acts as a brief "thinking pause" that subtly primes the agent, (3) the routing overhead changes cache behavior. Needs replication to confirm.
+
+**Router is too aggressive:** Haiku classified 87% of tasks as HARD (33/38 trials), compared to the oracle optimal of 26%. Tasks like T3, T9, T11, T14 always score 1.00 with Sonnet -- routing them to Opus wastes ~$0.49/task each. The HARD criteria are too broad; "multiple subsystems" and "complex data transformations" match most non-trivial programming tasks.
+
+**Cost efficiency:** At $1.20/task, v10-routed is only $0.06 cheaper than pure Opus ($1.26) because of over-routing. With optimal routing (26% Opus), cost would drop to ~$0.90/task while retaining most quality gains.
+
+### Routing Prompt Tuning (TODO)
+
+The current Haiku classifier needs to be more selective. Strategies to test:
+1. **Raise the bar:** Only HARD if task has 3+ complexity signals, not just 1
+2. **Explicit EASY examples:** Show Haiku examples of tasks that look complex but are EASY
+3. **Cost-aware framing:** Tell Haiku that HARD costs 2x and to only use it when genuinely needed
+4. **Category-based rules:** Use task metadata (greenfield/simple, bugfix/medium) as routing hints
+
+### Conclusions
+
+Model routing works -- v10-routed achieves the best score we've measured (0.899). The approach validates the hypothesis that Opus's advantage concentrates on hard tasks. The remaining optimization is classifier precision: route fewer tasks to Opus while keeping the quality gains on the tasks that actually benefit.
