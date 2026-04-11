@@ -49,6 +49,9 @@ type Config struct {
 	RalphTimeoutQuality   int
 	RalphTimeoutGlobal    int
 	RalphStuckThreshold   int
+
+	// Model routing
+	RoutingBias string // quality, balanced, cost, off
 }
 
 func Load() *Config {
@@ -88,6 +91,8 @@ func Load() *Config {
 		RalphTimeoutQuality:   envInt("RALPH_TIMEOUT_QUALITY", 180),
 		RalphTimeoutGlobal:    envInt("RALPH_TIMEOUT_GLOBAL", 3600),
 		RalphStuckThreshold:   envInt("RALPH_STUCK_THRESHOLD", 3),
+
+		RoutingBias: envOr("CONCLAVE_ROUTING", "balanced"),
 	}
 }
 

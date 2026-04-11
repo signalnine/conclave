@@ -26,9 +26,30 @@ When you receive a task, classify it and invoke the matching skill:
 2. Invoke ONE skill at a time (skills chain to the next when needed)
 3. After implementation, the Completion Gate applies (see below)
 
+## Model Routing
+
+After classifying the task type (above), check whether the current model is appropriate for the task's complexity. Run:
+
+```bash
+conclave route "one-line summary of the task"
+```
+
+This calls Haiku to classify the task as HARD or EASY and recommends a model. The routing bias is controlled by `CONCLAVE_ROUTING` (default: `balanced`). Users can set this to `quality`, `balanced`, `cost`, or `off`.
+
+**If the recommendation differs from the current model**, tell the user:
+
+> "This task looks [HARD/EASY]. For best results, consider using [recommended model]. You can switch with `/model [model-id]`."
+
+Don't block on this -- it's advisory. If the user stays on their current model, proceed normally.
+
+**Skip routing when:**
+- `CONCLAVE_ROUTING=off`
+- The task is research/exploration (no implementation)
+- The user has explicitly chosen their model
+
 ## State-Heavy Task Detection
 
-After classifying the task type (above), check if it also involves complex state management.
+After routing (above), check if the task also involves complex state management.
 
 **Compound signals (any ONE is sufficient):**
 - Concurrent/async operations with ordering constraints
@@ -43,7 +64,7 @@ queues, dashboards, WebSockets, state machines, schedulers, concurrent, real-tim
 for an extra review pass. The cost of a false negative is -15pp on a hard task.
 
 **Decision point:** The agent reading this skill makes the classification at task start,
-before invoking the first skill. Log the decision: "State-heavy: yes/no — [reason]".
+before invoking the first skill. Log the decision: "State-heavy: yes/no -- [reason]".
 
 If state-heavy: after implementation and first code review, run a SECOND
 code review (see requesting-code-review skill, "Second-Pass Review").
