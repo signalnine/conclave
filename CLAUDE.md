@@ -130,12 +130,11 @@ ANTHROPIC_BASE_URL=http://localhost:8199 claude
 
 ## Model Recommendations
 
-Benchmark data (796 trials) shows that with Conclave's structured methodology, **Sonnet 4.6 matches or beats Opus 4.6** at half the cost:
+Benchmark data (7,500+ trials, 125 orchestrators) validated the v10 methodology (Contract -> TDD -> Boil the Lake -> Verify) at 90.2% when Haiku routes hard tasks to Opus and easy tasks to Sonnet.
 
-- TDD: Sonnet 98.2% vs Opus 97.4%
-- Self-Review: Sonnet 97.1% vs Opus 96.8%
-
-Sonnet 4.6 is the recommended default model for Conclave-guided work.
+- **Default:** Sonnet 4.6 -- best cost-efficiency for most tasks ($0.82/task, 88.6%)
+- **Hard tasks:** Opus 4.6 -- complex state management, algorithmic reasoning, ambiguous specs
+- **Routing:** `conclave route "task summary"` classifies HARD/EASY via Haiku
 
 ## Key Conventions
 

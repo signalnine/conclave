@@ -28,6 +28,28 @@ Write the test first. Watch it fail. Write minimal code to pass.
 
 Thinking "skip TDD just this once"? Stop. That's rationalization.
 
+## Before You Write Any Code
+
+### 1. Understand First
+
+Read the task fully. Read every existing file: source, tests, config, docs. Understand what exists before adding to it.
+
+### 2. Write a Contract
+
+Before writing any implementation, create a **CONTRACT.md** file that defines:
+
+1. **Every behavior** the finished code must exhibit -- be specific and exhaustive
+2. **How to verify each behavior** -- the exact test, command, or check that proves it works
+3. **What done looks like** for each criterion -- expected output, return value, or state
+
+```markdown
+- [ ] POST /api/users creates a new user -> test: POST returns 201 with user object
+- [ ] Duplicate email returns 409 -> test: second POST with same email returns 409
+- [ ] Empty name rejected -> test: POST with empty name returns 400
+```
+
+This contract is your definition of done. You are not finished until every criterion passes. The contract drives the TDD cycle below -- each criterion becomes a failing test.
+
 ## The Iron Law
 
 ```
@@ -193,7 +215,23 @@ Keep tests green. Don't add behavior.
 
 ### Repeat
 
-Next failing test for next feature.
+Next failing test for next contract criterion.
+
+## Boil the Lake
+
+After all contract criteria have passing tests, ensure completeness:
+- Handle ALL edge cases, not just happy paths
+- Cover boundaries, errors, empty inputs
+- Implement the full feature, not 90% of it
+
+AI-assisted coding makes completeness nearly free. The cost of missing an edge case is a bug. The cost of covering it is 30 seconds.
+
+## Verify Against Contract
+
+After implementation, go through CONTRACT.md line by line:
+- Run each verification check
+- Fix ALL failures before moving on
+- Do not stop until every criterion in the contract passes, tests pass, build is clean, lint is clean
 
 ## Good Tests
 
@@ -328,16 +366,18 @@ Extract validation for multiple fields if needed.
 
 Before marking work complete:
 
-- [ ] Every new function/method has a test
+- [ ] CONTRACT.md exists and covers all required behaviors
+- [ ] Every contract criterion has a test
 - [ ] Watched each test fail before implementing
 - [ ] Each test failed for expected reason (feature missing, not typo)
 - [ ] Wrote minimal code to pass each test
 - [ ] All tests pass
 - [ ] Output pristine (no errors, warnings)
 - [ ] Tests use real code (mocks only if unavoidable)
-- [ ] Edge cases and errors covered
+- [ ] Edge cases and errors covered (Boil the Lake)
+- [ ] Every CONTRACT.md criterion verified and checked off
 
-Can't check all boxes? You skipped TDD. Start over.
+Can't check all boxes? You skipped the process. Start over.
 
 ## When Stuck
 

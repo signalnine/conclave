@@ -11,8 +11,10 @@ import (
 	"time"
 
 	"github.com/signalnine/conclave/internal/bus"
+	"github.com/signalnine/conclave/internal/config"
 	gitpkg "github.com/signalnine/conclave/internal/git"
 	"github.com/signalnine/conclave/internal/ralph"
+	"github.com/signalnine/conclave/internal/routing"
 	"github.com/spf13/cobra"
 )
 
@@ -38,6 +40,8 @@ func init() {
 	ralphRunCmd.Flags().String("eval-model", "", "Model for evaluator (default: same as generator)")
 	ralphRunCmd.Flags().Int("eval-timeout", 120, "Evaluator gate timeout (seconds)")
 	ralphRunCmd.Flags().String("system-prompt", "", "Custom system prompt (prepended to TDDPreamble)")
+	ralphRunCmd.Flags().String("model", "", "Model for implementation (overrides routing)")
+	ralphRunCmd.Flags().String("routing", "", "Routing bias: quality, balanced, cost, off (overrides CONCLAVE_ROUTING)")
 	rootCmd.AddCommand(ralphRunCmd)
 }
 
@@ -55,9 +59,43 @@ func runRalphRun(cmd *cobra.Command, args []string) error {
 	evalModel, _ := cmd.Flags().GetString("eval-model")
 	evalTimeout, _ := cmd.Flags().GetInt("eval-timeout")
 	systemPrompt, _ := cmd.Flags().GetString("system-prompt")
+	modelFlag, _ := cmd.Flags().GetString("model")
+	routingFlag, _ := cmd.Flags().GetString("routing")
 
 	if task == "" {
 		return fmt.Errorf("--task is required")
+	}
+
+	// Determine implementation model via routing or explicit flag
+	implModel := modelFlag
+	if implModel == "" {
+		cfg := config.Load()
+		bias := routingFlag
+		if bias == "" {
+			bias = cfg.RoutingBias
+		}
+		if bias != "" && bias != routing.BiasOff {
+			if !routing.ValidBias(bias) {
+				return fmt.Errorf("invalid routing bias: %q (valid: quality, balanced, cost, off)", bias)
+			}
+			router := &routing.Router{
+				APIKey:  cfg.AnthropicAPIKey,
+				BaseURL: cfg.AnthropicBaseURL,
+			}
+			// Read task content for routing (may be a file path or inline)
+			taskContent := task
+			if data, err := os.ReadFile(task); err == nil {
+				taskContent = string(data)
+			}
+			fmt.Fprintf(os.Stderr, "Routing: classifying task (bias=%s)...\n", bias)
+			result, err := router.Route(context.Background(), taskContent, bias)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "  Routing error: %v, using default model\n", err)
+			} else if result.Model != "" {
+				implModel = result.Model
+				fmt.Fprintf(os.Stderr, "  Routing decision: %s -> %s\n", result.Classification, implModel)
+			}
+		}
 	}
 
 	cwd, _ := os.Getwd()
@@ -124,7 +162,12 @@ func runRalphRun(cmd *cobra.Command, args []string) error {
 		}
 
 		implCtx, implCancel := context.WithTimeout(ctx, time.Duration(implTimeout)*time.Second)
-		implCmd := exec.CommandContext(implCtx, "claude", "-p", prompt)
+		implArgs := []string{"-p"}
+		if implModel != "" {
+			implArgs = append(implArgs, "--model", implModel)
+		}
+		implArgs = append(implArgs, prompt)
+		implCmd := exec.CommandContext(implCtx, "claude", implArgs...)
 		implCmd.Dir = cwd
 		implOut, implErr := implCmd.CombinedOutput()
 		implCancel()
