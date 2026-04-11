@@ -18,11 +18,9 @@ jobs:
         id: extract
         run: |
           VERSION=$(jq -r '.version' .claude-plugin/plugin.json)
+          DESC=$(jq -r '.description' .claude-plugin/plugin.json)
           echo "version=$VERSION" >> $GITHUB_OUTPUT
-
-          # Build description with version
-          DESC="Complete software development workflow with multi-agent consensus (Claude/Gemini/Codex), autonomous iteration (ralph-loop), and consensus autopilot. v${VERSION}"
-          echo "description=$DESC" >> $GITHUB_OUTPUT
+          echo "description=${DESC} v${VERSION}" >> $GITHUB_OUTPUT
 
       - name: Checkout marketplace
         uses: actions/checkout@v4
@@ -37,7 +35,7 @@ jobs:
 
           # Update description in plugins.json
           jq --arg desc "${{ steps.extract.outputs.description }}" \
-             '.plugins[0].description = $desc' \
+             '(.plugins[] | select(.name == "conclave")).description = $desc' \
              plugins.json > plugins.json.tmp && mv plugins.json.tmp plugins.json
 
           # Update version in .claude-plugin/marketplace.json
