@@ -142,7 +142,7 @@ func (a *CodexAgent) Name() string   { return "Codex" }
 func (a *CodexAgent) Available() bool { return a.cfg.OpenAIAPIKey != "" }
 
 var codexModelRe = regexp.MustCompile(`^gpt-5.*-codex`)
-var reasoningModelRe = regexp.MustCompile(`^(o1|o3|o4)`)
+var reasoningModelRe = regexp.MustCompile(`^(o1|o3|o4|gpt-5)`)
 var chatModelRe = regexp.MustCompile(`^(gpt-[345]|o1|o3|o4)`)
 
 func (a *CodexAgent) Run(ctx context.Context, prompt string) (string, error) {

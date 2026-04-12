@@ -62,7 +62,7 @@ func Load() *Config {
 		GeminiAPIKey:    coalesce(os.Getenv("GEMINI_API_KEY"), os.Getenv("GOOGLE_API_KEY")),
 		OpenAIAPIKey:    os.Getenv("OPENAI_API_KEY"),
 
-		AnthropicModel:     envOr("ANTHROPIC_MODEL", "claude-sonnet-4-6-20260320"),
+		AnthropicModel:     envOr("ANTHROPIC_MODEL", "claude-sonnet-4-6"),
 		AnthropicMaxTokens: envInt("ANTHROPIC_MAX_TOKENS", 16000),
 		GeminiModel:        envOr("GEMINI_MODEL", "gemini-3.1-pro-preview"),
 		OpenAIModel:        envOr("OPENAI_MODEL", "gpt-5.4"),
