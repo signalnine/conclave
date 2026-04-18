@@ -33,6 +33,8 @@ func ReadBoard(dir string, maxMessages int) ([]bus.Envelope, error) {
 			continue
 		}
 		scanner := bufio.NewScanner(f)
+		// Match FileBus.pollFiles buffer: board payloads can exceed 64KB default.
+		scanner.Buffer(make([]byte, 64*1024), 16*1024*1024)
 		for scanner.Scan() {
 			var env bus.Envelope
 			if err := json.Unmarshal(scanner.Bytes(), &env); err != nil {

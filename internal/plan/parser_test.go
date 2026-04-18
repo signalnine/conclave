@@ -3,6 +3,7 @@ package plan
 import (
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestParsePlan_SingleTask(t *testing.T) {
@@ -129,5 +130,39 @@ func TestValidate_MissingDep(t *testing.T) {
 	err := Validate(tasks)
 	if err == nil {
 		t.Error("expected missing dependency error")
+	}
+}
+
+func TestComputeWaves_CycleDoesNotStackOverflow(t *testing.T) {
+	// Regression: ComputeWaves previously stack-overflowed on cycles.
+	// Callers should Validate first, but the library must not crash.
+	tasks := []Task{
+		{ID: 1, DependsOn: []int{2}},
+		{ID: 2, DependsOn: []int{1}},
+	}
+	done := make(chan struct{})
+	go func() {
+		ComputeWaves(tasks)
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("ComputeWaves did not terminate on cyclic input")
+	}
+}
+
+func TestDetectFileOverlaps_CanInduceCycle(t *testing.T) {
+	// Regression: DetectFileOverlaps adds tasks[i].ID as dep of tasks[j]
+	// for i<j. When task 5 comes before task 3 with file overlap and task 5
+	// already depends on task 3, a cycle is introduced. Post-overlap
+	// validation must catch it.
+	tasks := []Task{
+		{ID: 5, FilePaths: []string{"shared.go"}, DependsOn: []int{3}},
+		{ID: 3, FilePaths: []string{"shared.go"}},
+	}
+	tasks = DetectFileOverlaps(tasks)
+	if err := Validate(tasks); err == nil {
+		t.Fatal("expected cycle error after overlap injection, got nil")
 	}
 }

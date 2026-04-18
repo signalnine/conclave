@@ -156,6 +156,9 @@ func (b *FileBus) pollFiles(sub *fileSubscriber) int {
 		// and the file descriptor position won't reflect actual line boundaries.
 		bytesConsumed := fileOffset
 		scanner := bufio.NewScanner(f)
+		// Default Scanner buffer is 64KB. Large JSON payloads silently stall
+		// the subscriber otherwise -- allow lines up to 16MB.
+		scanner.Buffer(make([]byte, 64*1024), 16*1024*1024)
 		for scanner.Scan() {
 			lineBytes := scanner.Bytes()
 			// +1 for the newline delimiter stripped by Scanner

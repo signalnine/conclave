@@ -93,11 +93,20 @@ func ParsePlan(r io.Reader) ([]Task, error) {
 
 func ComputeWaves(tasks []Task) map[int]int {
 	waves := make(map[int]int)
+	onStack := make(map[int]bool)
 	var depth func(id int) int
 	depth = func(id int) int {
 		if w, ok := waves[id]; ok {
 			return w
 		}
+		if onStack[id] {
+			// Cycle detected -- treat as wave 0 to stop recursion.
+			// Callers should call Validate() first to reject cyclic plans.
+			waves[id] = 0
+			return 0
+		}
+		onStack[id] = true
+		defer delete(onStack, id)
 		var t *Task
 		for i := range tasks {
 			if tasks[i].ID == id {
