@@ -57,6 +57,9 @@ func runParallelRun(cmd *cobra.Command, args []string) error {
 	}
 
 	tasks = plan.DetectFileOverlaps(tasks)
+	if err := plan.Validate(tasks); err != nil {
+		return fmt.Errorf("validating plan after file-overlap dep injection: %w", err)
+	}
 	waves := plan.ComputeWaves(tasks)
 	waveCount := plan.WaveCount(waves)
 
