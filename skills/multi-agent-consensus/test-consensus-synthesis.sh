@@ -3,6 +3,17 @@ set -e
 
 SCRIPT="$(cd "$(dirname "$0")" && pwd)/consensus-synthesis.sh"
 
+# Source ~/.env so API keys are available to `env` for partial-success tests.
+# Without this, keys only live inside the script's own shell (via its own source),
+# and `env -u KEY HOME=/tmp` below would leave the remaining keys undefined too.
+if [[ -f ~/.env ]]; then
+    set +u
+    # shellcheck disable=SC1090
+    source ~/.env 2>/dev/null || true
+    set -u
+    export ANTHROPIC_API_KEY GEMINI_API_KEY GOOGLE_API_KEY OPENAI_API_KEY
+fi
+
 echo "Testing consensus-synthesis.sh..."
 
 # Test 1: Missing --mode flag
@@ -334,9 +345,9 @@ fi
 
 # Test 20: Partial success - 1/3 agents succeed
 echo -n "Test 20: Partial success with 1/3 agents... "
-# The script already has Gemini and Codex returning failure states by default
-# So just run normally - Claude succeeds, Gemini/Codex fail
-output=$(bash "$SCRIPT" --mode=general-prompt --prompt="test" 2>&1)
+# Unset Gemini and OpenAI keys so only Claude succeeds
+output=$(env -u GEMINI_API_KEY -u GOOGLE_API_KEY -u OPENAI_API_KEY HOME=/tmp \
+    bash "$SCRIPT" --mode=general-prompt --prompt="test" 2>&1)
 exit_code=$?
 
 # Should succeed with 1/3
@@ -353,34 +364,11 @@ fi
 
 # Test 21: Partial success - 2/3 agents succeed
 echo -n "Test 21: Partial success with 2/3 agents... "
-# Modify script to make Claude and Gemini succeed (Codex fails)
-PARTIAL2_SCRIPT=$(mktemp)
-cp "$SCRIPT" "$PARTIAL2_SCRIPT"
-
-# Replace run_gemini function (lines 339-367) with success version
-head -n 338 "$PARTIAL2_SCRIPT" > "${PARTIAL2_SCRIPT}.new"
-cat >> "${PARTIAL2_SCRIPT}.new" <<'GEMINICODE'
-run_gemini() {
-    local prompt="$1"
-    local output_file="$2"
-    cat > "$output_file" <<'EOF'
-# Gemini Test Success
-
-## Strong Points
-- Test point from Gemini
-EOF
-    return 0
-}
-GEMINICODE
-tail -n +368 "$PARTIAL2_SCRIPT" >> "${PARTIAL2_SCRIPT}.new"
-mv "${PARTIAL2_SCRIPT}.new" "$PARTIAL2_SCRIPT"
-
-output=$(bash "$PARTIAL2_SCRIPT" --mode=general-prompt --prompt="test" 2>&1)
+# Unset OpenAI key so Claude + Gemini succeed, Codex fails
+output=$(env -u OPENAI_API_KEY HOME=/tmp \
+    bash "$SCRIPT" --mode=general-prompt --prompt="test" 2>&1)
 exit_code=$?
 
-rm -f "$PARTIAL2_SCRIPT"
-
-# Should succeed with 2/3
 if [[ $exit_code -eq 0 ]] && echo "$output" | grep -q "2/3 succeeded"; then
     echo "PASS"
 else
@@ -394,53 +382,9 @@ fi
 
 # Test 22: Full success - 3/3 agents succeed
 echo -n "Test 22: Full success with 3/3 agents... "
-# Modify script to make all agents succeed
-PARTIAL3_SCRIPT=$(mktemp)
-cp "$SCRIPT" "$PARTIAL3_SCRIPT"
-
-# Replace run_gemini function (lines 339-367)
-head -n 338 "$PARTIAL3_SCRIPT" > "${PARTIAL3_SCRIPT}.new"
-cat >> "${PARTIAL3_SCRIPT}.new" <<'GEMINICODE'
-run_gemini() {
-    local prompt="$1"
-    local output_file="$2"
-    cat > "$output_file" <<'EOF'
-# Gemini Test Success
-
-## Strong Points
-- Test point from Gemini
-EOF
-    return 0
-}
-GEMINICODE
-tail -n +368 "$PARTIAL3_SCRIPT" >> "${PARTIAL3_SCRIPT}.new"
-mv "${PARTIAL3_SCRIPT}.new" "$PARTIAL3_SCRIPT"
-
-# Replace run_codex function (now at line 352 after Gemini replacement)
-# Function spans from 352 to 367
-head -n 351 "$PARTIAL3_SCRIPT" > "${PARTIAL3_SCRIPT}.new"
-cat >> "${PARTIAL3_SCRIPT}.new" <<'CODEXCODE'
-run_codex() {
-    local prompt="$1"
-    local output_file="$2"
-    cat > "$output_file" <<'EOF'
-# Codex Test Success
-
-## Strong Points
-- Test point from Codex
-EOF
-    return 0
-}
-CODEXCODE
-tail -n +368 "$PARTIAL3_SCRIPT" >> "${PARTIAL3_SCRIPT}.new"
-mv "${PARTIAL3_SCRIPT}.new" "$PARTIAL3_SCRIPT"
-
-output=$(bash "$PARTIAL3_SCRIPT" --mode=general-prompt --prompt="test" 2>&1)
+output=$(bash "$SCRIPT" --mode=general-prompt --prompt="test" 2>&1)
 exit_code=$?
 
-rm -f "$PARTIAL3_SCRIPT"
-
-# Should succeed with 3/3
 if [[ $exit_code -eq 0 ]] && echo "$output" | grep -q "3/3 succeeded"; then
     echo "PASS"
 else
@@ -577,7 +521,7 @@ fi
 # Test 29: Chairman timeout logic exists
 echo -n "Test 29: Chairman timeout logic exists... "
 # Verify timeout handling code exists for chairman
-if grep -q "timeout_duration=30" "$SCRIPT" && \
+if grep -q "timeout_duration=\$STAGE2_TIMEOUT" "$SCRIPT" && \
    grep -q "elapsed.*timeout_duration" "$SCRIPT"; then
     echo "PASS"
 else
@@ -665,8 +609,9 @@ TIMEOUT_SCRIPT=$(mktemp)
 cp "$SCRIPT" "$TIMEOUT_SCRIPT"
 sed -i 's/run_claude() {/run_claude() {\n    sleep 25;/' "$TIMEOUT_SCRIPT"
 
-# Set env var to 20s but CLI flag to 30s - should NOT timeout
-output=$(CONSENSUS_STAGE1_TIMEOUT=20 timeout 35s bash "$TIMEOUT_SCRIPT" --mode=general-prompt --prompt="test" --stage1-timeout=30 2>&1 || true)
+# Set env var to 20s but CLI flag to 30s - should NOT timeout.
+# Outer timeout budget: sleep 25 + API (~3s) = ~28s stage 1, plus stage 2 (~10s) ~= 40s total.
+output=$(CONSENSUS_STAGE1_TIMEOUT=20 timeout 60s bash "$TIMEOUT_SCRIPT" --mode=general-prompt --prompt="test" --stage1-timeout=30 2>&1 || true)
 
 rm -f "$TIMEOUT_SCRIPT"
 
