@@ -21,6 +21,7 @@ The routing bias controls the cost/quality tradeoff:
   quality   - routes most tasks to Opus (high cost, high quality)
   balanced  - moderate routing (default)
   cost      - minimal Opus routing (low cost)
+  off       - disable routing (print "OFF" and exit)
 
 Examples:
   conclave route "Build a reactive spreadsheet with cycle detection"
@@ -31,7 +32,7 @@ Examples:
 }
 
 func init() {
-	routeCmd.Flags().String("bias", "", "Routing bias: quality, balanced, cost (overrides CONCLAVE_ROUTING)")
+	routeCmd.Flags().String("bias", "", "Routing bias: quality, balanced, cost, off (overrides CONCLAVE_ROUTING)")
 	rootCmd.AddCommand(routeCmd)
 }
 
@@ -43,11 +44,15 @@ func runRoute(cmd *cobra.Command, args []string) error {
 	if bias == "" {
 		bias = cfg.RoutingBias
 	}
-	if bias == "" || bias == routing.BiasOff {
+	if bias == "" {
 		bias = routing.BiasBalanced
 	}
+	if bias == routing.BiasOff {
+		fmt.Println("OFF (routing disabled)")
+		return nil
+	}
 	if !routing.ValidBias(bias) {
-		return fmt.Errorf("invalid routing bias: %q (valid: quality, balanced, cost)", bias)
+		return fmt.Errorf("invalid routing bias: %q (valid: quality, balanced, cost, off)", bias)
 	}
 
 	// Read task: treat arg as file path first, then as inline text

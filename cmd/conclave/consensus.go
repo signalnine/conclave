@@ -97,7 +97,10 @@ func runConsensus(cmd *cobra.Command, args []string) error {
 		}
 		var planContent string
 		if planFile != "" {
-			data, _ := os.ReadFile(planFile)
+			data, err := os.ReadFile(planFile)
+			if err != nil {
+				return fmt.Errorf("reading plan file %q: %w", planFile, err)
+			}
 			planContent = string(data)
 		}
 		stage1Prompt = consensus.BuildCodeReviewPrompt(description, diff, modifiedFiles, planContent)
