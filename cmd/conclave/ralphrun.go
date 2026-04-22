@@ -66,6 +66,13 @@ func runRalphRun(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("--task is required")
 	}
 
+	// --task may be either inline text or a path to a prompt file. Read it
+	// here so both routing and the implementation gate see the same content.
+	taskContent := task
+	if data, err := os.ReadFile(task); err == nil {
+		taskContent = string(data)
+	}
+
 	// Determine implementation model via routing or explicit flag
 	implModel := modelFlag
 	if implModel == "" {
@@ -81,11 +88,6 @@ func runRalphRun(cmd *cobra.Command, args []string) error {
 			router := &routing.Router{
 				APIKey:  cfg.AnthropicAPIKey,
 				BaseURL: cfg.AnthropicBaseURL,
-			}
-			// Read task content for routing (may be a file path or inline)
-			taskContent := task
-			if data, err := os.ReadFile(task); err == nil {
-				taskContent = string(data)
 			}
 			fmt.Fprintf(os.Stderr, "Routing: classifying task (bias=%s)...\n", bias)
 			result, err := router.Route(context.Background(), taskContent, bias)
@@ -143,7 +145,7 @@ func runRalphRun(cmd *cobra.Command, args []string) error {
 		if systemPrompt != "" {
 			preamble = systemPrompt + "\n\n" + ralph.TDDPreamble
 		}
-		prompt := preamble + "\n\n" + task
+		prompt := preamble + "\n\n" + taskContent
 		if stuckDirective != "" {
 			prompt = stuckDirective + "\n\n" + prompt
 		}
@@ -211,7 +213,7 @@ func runRalphRun(cmd *cobra.Command, args []string) error {
 			fmt.Fprintf(os.Stderr, "  Tests failed\n")
 			if evalEnabled {
 				fmt.Fprintln(os.Stderr, "  Running evaluator...")
-				evalOutput, evalErr := ralph.RunEvalGate(ctx, cwd, task, testOutput, evalModel, evalTimeout)
+				evalOutput, evalErr := ralph.RunEvalGate(ctx, cwd, taskContent, testOutput, evalModel, evalTimeout)
 				if evalErr != nil {
 					fmt.Fprintf(os.Stderr, "  Evaluator failed, using raw test output: %v\n", evalErr)
 					sm.Update("tests", 1, testOutput)

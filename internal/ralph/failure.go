@@ -19,7 +19,13 @@ func BranchFailedWork(g *gitpkg.Git, taskID string, state *State) error {
 
 	// Safety: don't reset protected branches
 	if currentBranch == "main" || currentBranch == "master" {
-		g.CreateBranch(branchName)
+		if err := g.CreateBranch(branchName); err != nil {
+			// Branch collision -- retry with unique suffix so we never commit to main.
+			branchName = fmt.Sprintf("%s-%d", branchName, time.Now().UnixNano())
+			if err := g.CreateBranch(branchName); err != nil {
+				return fmt.Errorf("creating failure branch: %w", err)
+			}
+		}
 		g.AddAll()
 		msg := fmt.Sprintf("Ralph Loop failed: %s (on %s)", taskID, currentBranch)
 		g.CommitAllowEmpty(msg)
@@ -30,7 +36,7 @@ func BranchFailedWork(g *gitpkg.Git, taskID string, state *State) error {
 
 	if err := g.CreateBranch(branchName); err != nil {
 		// Branch may exist, add timestamp suffix
-		branchName = fmt.Sprintf("%s-%d", branchName, time.Now().Unix())
+		branchName = fmt.Sprintf("%s-%d", branchName, time.Now().UnixNano())
 		if err := g.CreateBranch(branchName); err != nil {
 			return err
 		}

@@ -29,7 +29,13 @@ func SessionStart(pluginRoot string) (string, error) {
 		}
 	}
 
-	binaryPath := filepath.Join(pluginRoot, "conclave")
+	// Prefer the actual running executable so the hook emits the correct path
+	// when Claude Code invokes a binary whose name or location is not the
+	// literal plugin-root/conclave layout (eg. `go run ...`, symlinked installs).
+	binaryPath, err := os.Executable()
+	if err != nil || binaryPath == "" {
+		binaryPath = filepath.Join(pluginRoot, "conclave")
+	}
 
 	ctx := fmt.Sprintf("<EXTREMELY_IMPORTANT>\nYou have conclave.\n\n"+
 		"**The conclave CLI binary is at: `%s`** — always use this full path when running conclave commands.\n\n"+

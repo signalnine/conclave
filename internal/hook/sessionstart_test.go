@@ -37,10 +37,11 @@ func TestSessionStart_OutputsValidJSON(t *testing.T) {
 		t.Error("missing additionalContext")
 	}
 
-	// Should contain the binary path
-	expectedPath := filepath.Join(dir, "conclave")
-	if !strings.Contains(ctx, expectedPath) {
-		t.Errorf("additionalContext should contain binary path %q", expectedPath)
+	// Should contain a binary path reference. When SessionStart runs from a
+	// test binary, it reports os.Executable() rather than pluginRoot/conclave,
+	// so we only check for the path-announcement prefix.
+	if !strings.Contains(ctx, "The conclave CLI binary is at:") {
+		t.Error("additionalContext missing binary-path announcement")
 	}
 }
 
