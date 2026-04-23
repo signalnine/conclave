@@ -197,6 +197,22 @@ func TestTestFirstRatio(t *testing.T) {
 	}
 }
 
+func TestTestFirstRatio_ImplEditCountsAsImplModification(t *testing.T) {
+	// Bug fix TDD: developer writes a new test, then edits an existing impl file
+	// (Edit, not Write). The impl should be recognized as modified and paired
+	// with the preceding test. Previously checkTestFirstRatio only counted
+	// Write for impl files, so editing an existing impl file yielded a 0 ratio
+	// despite correct TDD ordering.
+	trace := mkTrace(
+		w("/workspace/src/__tests__/foo.test.ts"),
+		e("/workspace/src/foo.ts"),
+	)
+	p := ExtractBehaviors(trace)
+	if p.TestFirstRatio < 0.99 || p.TestFirstRatio > 1.01 {
+		t.Errorf("TestFirstRatio = %f, want ~1.0 (test written before impl edited)", p.TestFirstRatio)
+	}
+}
+
 func TestTestFirstRatio_CrossLanguage(t *testing.T) {
 	// Each language's conventional test/impl pair must be recognized so the
 	// ratio reflects real TDD behavior regardless of the trace's language.

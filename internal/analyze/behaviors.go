@@ -88,7 +88,7 @@ func checkTestFirstRatio(trace *Trace) float64 {
 	testFirst := 0
 	implSeen := map[string]bool{}
 	for _, tc := range trace.ToolCalls {
-		if tc.Name != "Write" || !IsImplFile(tc.FilePath) {
+		if (tc.Name != "Write" && tc.Name != "Edit") || !IsImplFile(tc.FilePath) {
 			continue
 		}
 		if implSeen[tc.FilePath] {
