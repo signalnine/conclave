@@ -134,6 +134,9 @@ func ComputeWaves(tasks []Task) map[int]int {
 }
 
 func WaveCount(waves map[int]int) int {
+	if len(waves) == 0 {
+		return 0
+	}
 	max := 0
 	for _, w := range waves {
 		if w > max {

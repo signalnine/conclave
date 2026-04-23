@@ -152,6 +152,15 @@ func TestComputeWaves_CycleDoesNotStackOverflow(t *testing.T) {
 	}
 }
 
+func TestWaveCount_EmptyReturnsZero(t *testing.T) {
+	if got := WaveCount(map[int]int{}); got != 0 {
+		t.Errorf("WaveCount({}) = %d, want 0", got)
+	}
+	if got := WaveCount(nil); got != 0 {
+		t.Errorf("WaveCount(nil) = %d, want 0", got)
+	}
+}
+
 func TestDetectFileOverlaps_CanInduceCycle(t *testing.T) {
 	// Regression: DetectFileOverlaps adds tasks[i].ID as dep of tasks[j]
 	// for i<j. When task 5 comes before task 3 with file overlap and task 5

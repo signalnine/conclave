@@ -171,6 +171,34 @@ func runConsensus(cmd *cobra.Command, args []string) error {
 	}
 	fmt.Fprintf(outputFile, "# Multi-Agent Consensus Analysis\n\n**Mode:** %s\n**Date:** %s\n**Agents Succeeded:** %d/3\n**Chairman:** %s%s\n\n---\n\n",
 		mode, time.Now().Format("2006-01-02 15:04:05"), result.AgentsSucceeded, result.ChairmanName, debateLabel)
+
+	// Stage 1: raw agent analyses (useful when the chairman's summary
+	// elides relevant detail or when a user wants to audit dissent)
+	fmt.Fprintln(outputFile, "## Stage 1: Independent Agent Analyses")
+	fmt.Fprintln(outputFile)
+	for _, r := range result.Stage1Results {
+		if r.Err != nil {
+			fmt.Fprintf(outputFile, "### %s -- FAILED\n\n`%v`\n\n", r.Agent, r.Err)
+			continue
+		}
+		fmt.Fprintf(outputFile, "### %s\n\n%s\n\n", r.Agent, r.Output)
+	}
+
+	// Stage 1.5: debate rebuttals, when present
+	if len(result.Rebuttals) > 0 {
+		fmt.Fprintln(outputFile, "---")
+		fmt.Fprintln(outputFile, "## Stage 1.5: Debate Rebuttals")
+		fmt.Fprintln(outputFile)
+		for _, r := range result.Rebuttals {
+			if r.Err != nil {
+				fmt.Fprintf(outputFile, "### %s -- FAILED\n\n`%v`\n\n", r.Agent, r.Err)
+				continue
+			}
+			fmt.Fprintf(outputFile, "### %s\n\n%s\n\n", r.Agent, r.Output)
+		}
+	}
+
+	fmt.Fprintln(outputFile, "---")
 	fmt.Fprintf(outputFile, "## Stage 2: Chairman Consensus (by %s)\n\n%s\n", result.ChairmanName, result.ChairmanOutput)
 	outputFile.Close()
 

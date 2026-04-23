@@ -8,17 +8,15 @@ import (
 
 // Resolve finds a skill by name. Search order: personal dir, then conclave dir.
 // The "conclave:" prefix forces conclave-only lookup.
-// personalDir can be nil/empty to skip personal skills.
-func Resolve(name string, personalDir interface{}, conclaveDir string) *Skill {
+// An empty personalDir skips personal skills.
+func Resolve(name, personalDir, conclaveDir string) *Skill {
 	forceConclave := strings.HasPrefix(name, "conclave:")
 	actualName := strings.TrimPrefix(name, "conclave:")
 
 	// Try personal first (unless conclave: prefix)
-	if !forceConclave {
-		if pd, ok := personalDir.(string); ok && pd != "" {
-			if s := findSkill(pd, actualName, "personal"); s != nil {
-				return s
-			}
+	if !forceConclave && personalDir != "" {
+		if s := findSkill(personalDir, actualName, "personal"); s != nil {
+			return s
 		}
 	}
 

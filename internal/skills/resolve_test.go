@@ -7,7 +7,7 @@ import (
 func TestResolve_FindsInConclave(t *testing.T) {
 	dir := t.TempDir()
 	createSkill(t, dir, "brainstorming", "---\nname: brainstorming\n---\nContent.\n")
-	s := Resolve("brainstorming", nil, dir)
+	s := Resolve("brainstorming", "", dir)
 	if s == nil {
 		t.Fatal("not found")
 	}
@@ -40,7 +40,7 @@ func TestResolve_ConclavePrefix_SkipsPersonal(t *testing.T) {
 
 func TestResolve_NotFound(t *testing.T) {
 	dir := t.TempDir()
-	s := Resolve("nonexistent", nil, dir)
+	s := Resolve("nonexistent", "", dir)
 	if s != nil {
 		t.Errorf("expected nil, got %v", s)
 	}

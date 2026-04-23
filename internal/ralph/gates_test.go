@@ -55,3 +55,31 @@ echo "SPEC_PASS"
 		t.Errorf("prompt should instruct emitting SPEC_PASS; got: %q", got)
 	}
 }
+
+// TestRunSpecGate_NonComplianceOutputSurfaced verifies the gate returns
+// claude's non-compliance feedback verbatim without SPEC_PASS so callers
+// can detect failure.
+func TestRunSpecGate_NonComplianceOutputSurfaced(t *testing.T) {
+	tmp := t.TempDir()
+	fakeScript := `#!/bin/bash
+cat - > /dev/null
+echo "- Missing test file"
+echo "- greet() not implemented"
+`
+	fakeClaude := filepath.Join(tmp, "claude")
+	if err := os.WriteFile(fakeClaude, []byte(fakeScript), 0755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", tmp+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	out, err := RunSpecGate(context.Background(), "spec", "state", 10)
+	if err != nil {
+		t.Fatalf("RunSpecGate: %v", err)
+	}
+	if strings.Contains(out, "SPEC_PASS") {
+		t.Errorf("should not contain SPEC_PASS on non-compliance; got: %q", out)
+	}
+	if !strings.Contains(out, "Missing test file") {
+		t.Errorf("non-compliance details missing; got: %q", out)
+	}
+}
