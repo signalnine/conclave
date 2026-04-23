@@ -186,7 +186,7 @@ func IsImplFile(path string) bool {
 	}
 
 	// Must be a source file
-	for _, ext := range []string{".ts", ".js", ".py", ".go", ".rs", ".java"} {
+	for _, ext := range []string{".ts", ".tsx", ".js", ".jsx", ".py", ".go", ".rs", ".rb", ".java"} {
 		if strings.HasSuffix(base, ext) {
 			return true
 		}

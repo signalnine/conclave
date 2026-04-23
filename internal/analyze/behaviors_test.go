@@ -197,6 +197,62 @@ func TestTestFirstRatio(t *testing.T) {
 	}
 }
 
+func TestTestFirstRatio_CrossLanguage(t *testing.T) {
+	// Each language's conventional test/impl pair must be recognized so the
+	// ratio reflects real TDD behavior regardless of the trace's language.
+	tests := []struct {
+		name    string
+		trace   *Trace
+		wantMin float64
+		wantMax float64
+	}{
+		{
+			name: "python test_ prefix pairs with impl",
+			trace: mkTrace(
+				w("/workspace/tests/test_foo.py"),
+				w("/workspace/src/foo.py"),
+			),
+			wantMin: 0.99,
+			wantMax: 1.01,
+		},
+		{
+			name: "ruby _spec suffix pairs with impl",
+			trace: mkTrace(
+				w("/workspace/spec/foo_spec.rb"),
+				w("/workspace/lib/foo.rb"),
+			),
+			wantMin: 0.99,
+			wantMax: 1.01,
+		},
+		{
+			name: "go _test suffix pairs with impl in same dir",
+			trace: mkTrace(
+				w("/workspace/pkg/foo_test.go"),
+				w("/workspace/pkg/foo.go"),
+			),
+			wantMin: 0.99,
+			wantMax: 1.01,
+		},
+		{
+			name: "jest test in tests dir pairs with src impl",
+			trace: mkTrace(
+				w("/workspace/tests/foo.test.ts"),
+				w("/workspace/src/foo.ts"),
+			),
+			wantMin: 0.99,
+			wantMax: 1.01,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p := ExtractBehaviors(tt.trace)
+			if p.TestFirstRatio < tt.wantMin || p.TestFirstRatio > tt.wantMax {
+				t.Errorf("TestFirstRatio = %f, want in [%f, %f]", p.TestFirstRatio, tt.wantMin, tt.wantMax)
+			}
+		})
+	}
+}
+
 func TestFinalVerification(t *testing.T) {
 	tests := []struct {
 		name  string

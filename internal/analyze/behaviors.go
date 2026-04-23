@@ -1,6 +1,7 @@
 package analyze
 
 import (
+	"path/filepath"
 	"strings"
 )
 
@@ -284,13 +285,18 @@ func isDiffCmd(cmd string) bool {
 	return strings.Contains(cmd, "git diff")
 }
 
-// testBaseName extracts a simplified name from a test file path for matching.
+// testBaseName extracts a simplified filename key used to pair a test file
+// with its corresponding implementation file. Both "src/foo.ts" and
+// "tests/foo.test.ts" (or "tests/test_foo.py" and "src/foo.py") normalize
+// to the same key so checkTestFirstRatio recognizes the pair regardless of
+// directory layout or language-specific test naming conventions.
 func testBaseName(path string) string {
-	lower := strings.ToLower(path)
-	// Remove common test suffixes/directories
-	lower = strings.ReplaceAll(lower, "__tests__/", "")
-	lower = strings.ReplaceAll(lower, ".test.", ".")
-	lower = strings.ReplaceAll(lower, ".spec.", ".")
-	lower = strings.ReplaceAll(lower, "_test.", ".")
-	return lower
+	base := strings.ToLower(filepath.Base(path))
+	base = strings.ReplaceAll(base, ".test.", ".")
+	base = strings.ReplaceAll(base, ".spec.", ".")
+	base = strings.ReplaceAll(base, "_test.", ".")
+	base = strings.ReplaceAll(base, "_spec.", ".")
+	base = strings.TrimPrefix(base, "test_")
+	base = strings.TrimPrefix(base, "spec_")
+	return base
 }
