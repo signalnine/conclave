@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"encoding/json"
 	"os"
+	"path/filepath"
 	"strings"
 )
 
@@ -119,12 +120,46 @@ func extractToolCalls(raw json.RawMessage, startIndex int) []ToolCall {
 	return calls
 }
 
-// IsTestFile returns true if the file path looks like a test file.
+// testDirNames are directory names that conventionally contain test files.
+// Matched against individual path components, not as substrings.
+var testDirNames = map[string]bool{
+	"test":      true,
+	"tests":     true,
+	"__tests__": true,
+	"spec":      true,
+	"specs":     true,
+}
+
+// IsTestFile returns true if the file path looks like a test file. It matches
+// either by filename convention (foo_test.go, foo.test.ts, foo.spec.js,
+// test_foo.py) or by living under a conventional test directory.
 func IsTestFile(path string) bool {
+	if path == "" {
+		return false
+	}
 	lower := strings.ToLower(path)
-	return strings.Contains(lower, "test") ||
-		strings.Contains(lower, "spec") ||
-		strings.Contains(lower, "__tests__")
+	base := filepath.Base(lower)
+
+	// Filename conventions
+	if strings.HasSuffix(base, "_test.go") ||
+		strings.HasSuffix(base, "_test.py") ||
+		strings.HasSuffix(base, "_spec.rb") ||
+		strings.HasPrefix(base, "test_") ||
+		strings.Contains(base, ".test.") ||
+		strings.Contains(base, ".spec.") {
+		return true
+	}
+
+	// Directory conventions: any path component named test/tests/__tests__/spec/specs.
+	// Split on both "/" and "\" so Windows-style paths from upstream traces work too.
+	parts := strings.FieldsFunc(lower, func(r rune) bool { return r == '/' || r == '\\' })
+	// The last part is the filename, which we already covered above.
+	for _, part := range parts[:max(0, len(parts)-1)] {
+		if testDirNames[part] {
+			return true
+		}
+	}
+	return false
 }
 
 // IsImplFile returns true if the file path looks like an implementation file
@@ -133,20 +168,26 @@ func IsImplFile(path string) bool {
 	if path == "" {
 		return false
 	}
-	lower := strings.ToLower(path)
-	// Exclude test files
 	if IsTestFile(path) {
 		return false
 	}
-	// Exclude config/meta files
-	for _, exc := range []string{"package.json", "tsconfig", "vitest.config", "jest.config", ".eslint", "index.ts", "index.js"} {
-		if strings.Contains(lower, exc) {
+	lower := strings.ToLower(path)
+	base := filepath.Base(lower)
+
+	// Exclude config/meta files by exact basename or basename pattern.
+	switch base {
+	case "package.json", "index.ts", "index.js":
+		return false
+	}
+	for _, prefix := range []string{"tsconfig", "vitest.config", "jest.config", ".eslint"} {
+		if strings.HasPrefix(base, prefix) {
 			return false
 		}
 	}
+
 	// Must be a source file
 	for _, ext := range []string{".ts", ".js", ".py", ".go", ".rs", ".java"} {
-		if strings.HasSuffix(lower, ext) {
+		if strings.HasSuffix(base, ext) {
 			return true
 		}
 	}

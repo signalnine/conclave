@@ -80,6 +80,64 @@ func TestParseTrace_MultipleToolsPerMessage(t *testing.T) {
 	}
 }
 
+func TestIsTestFile(t *testing.T) {
+	tests := []struct {
+		path string
+		want bool
+	}{
+		// True positives -- real test files
+		{"/workspace/src/__tests__/foo.test.ts", true},
+		{"/workspace/test/foo.test.ts", true},
+		{"/workspace/tests/helpers.go", true},
+		{"/workspace/spec/parser_spec.rb", true},
+		{"/workspace/src/parser_test.go", true},
+		{"/workspace/src/parser.test.ts", true},
+		{"/workspace/src/parser.spec.js", true},
+		{"/workspace/test_parser.py", true},
+		// False positives the old substring match got wrong:
+		{"/workspace/latest/foo.ts", false},        // "latest" contains "test"
+		{"/workspace/src/protest.ts", false},       // "protest" contains "test"
+		{"/workspace/src/contestant.go", false},    // "contestant" contains "test"
+		{"/workspace/src/specification.ts", false}, // "specification" contains "spec"
+		{"/workspace/src/inspector.ts", false},     // "inspector" contains "spec"
+		{"/workspace/src/respect.go", false},       // "respect" contains "spec"
+		// Plain impl
+		{"/workspace/src/foo.ts", false},
+		{"/workspace/src/main.go", false},
+		{"", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.path, func(t *testing.T) {
+			if got := IsTestFile(tt.path); got != tt.want {
+				t.Errorf("IsTestFile(%q) = %v, want %v", tt.path, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestIsImplFile_NotConfusedByTestSubstrings(t *testing.T) {
+	// Files that look like impl but contain test/spec substrings somewhere in the path.
+	tests := []struct {
+		path string
+		want bool
+	}{
+		{"/workspace/latest/foo.ts", true},        // "latest" was wrongly excluded as test
+		{"/workspace/src/protest.ts", true},       // "protest" was wrongly excluded as test
+		{"/workspace/src/specification.ts", true}, // "specification" was wrongly excluded
+		{"/workspace/src/inspector.ts", true},     // "inspector" was wrongly excluded
+		// And actual test files must still be excluded:
+		{"/workspace/src/__tests__/foo.test.ts", false},
+		{"/workspace/src/foo_test.go", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.path, func(t *testing.T) {
+			if got := IsImplFile(tt.path); got != tt.want {
+				t.Errorf("IsImplFile(%q) = %v, want %v", tt.path, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestParseTrace_StringMessage(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "output.jsonl")
