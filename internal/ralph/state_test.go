@@ -3,6 +3,7 @@ package ralph
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -81,5 +82,42 @@ func TestExists(t *testing.T) {
 	s.Init("task-1", 5)
 	if !s.Exists() {
 		t.Error("should exist after init")
+	}
+}
+
+func TestAtomicWriteFile_DoesNotLeaveTempOnSuccess(t *testing.T) {
+	dir := t.TempDir()
+	path := dir + "/target.txt"
+	if err := atomicWriteFile(path, []byte("hello"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	got, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(got) != "hello" {
+		t.Errorf("got %q, want hello", got)
+	}
+	// Temp files should be cleaned up.
+	entries, _ := os.ReadDir(dir)
+	for _, e := range entries {
+		if strings.Contains(e.Name(), ".tmp-") {
+			t.Errorf("leftover temp file: %s", e.Name())
+		}
+	}
+}
+
+func TestAtomicWriteFile_OverwritesInPlace(t *testing.T) {
+	dir := t.TempDir()
+	path := dir + "/target.txt"
+	if err := atomicWriteFile(path, []byte("first"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := atomicWriteFile(path, []byte("second"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	got, _ := os.ReadFile(path)
+	if string(got) != "second" {
+		t.Errorf("got %q, want second", got)
 	}
 }

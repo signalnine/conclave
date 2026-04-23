@@ -300,16 +300,21 @@ func RunConsensusWithDebate(ctx context.Context, agents, chairmen []Agent,
 		return nil, fmt.Errorf("all agents failed in Stage 1")
 	}
 
-	// Stage 1.5: Debate
+	// Stage 1.5: Debate. Each round debates the PRIOR round's output:
+	// round 1 debates stage1, round 2 debates round 1's rebuttals, etc.
+	// Previously every round re-debated stage 1 with overwritten rebuttals,
+	// so `--debate-rounds 2` just re-ran round 1 twice.
 	var rebuttals []AgentResult
+	priorRound := stage1Results
 	for round := 0; round < debateRounds; round++ {
 		fmt.Fprintf(os.Stderr, "  Debate round %d of %d...\n", round+1, debateRounds)
-		var err error
-		rebuttals, err = RunDebateRound(ctx, available, stage1Results, debateTimeout)
+		next, err := RunDebateRound(ctx, available, priorRound, debateTimeout)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "  Debate round failed: %v (continuing to synthesis)\n", err)
 			break
 		}
+		rebuttals = next
+		priorRound = next
 	}
 
 	// Stage 2

@@ -65,7 +65,7 @@ func (s *StateManager) Init(taskID string, maxIter int) error {
 		return err
 	}
 	ctx := fmt.Sprintf("# Ralph Loop Context: %s\n\n## Status\n- Iteration: 1 of %d\n- Last gate: (none yet)\n\n## Previous Output\n(First attempt - no previous output)\n", taskID, maxIter)
-	return os.WriteFile(s.contextPath(), []byte(ctx), 0644)
+	return atomicWriteFile(s.contextPath(), []byte(ctx), 0644)
 }
 
 func (s *StateManager) Load() (*State, error) {
@@ -127,7 +127,7 @@ func (s *StateManager) Update(gate string, exitCode int, output string) error {
 	// Update context file
 	ctx := fmt.Sprintf("# Ralph Loop Context: %s\n\n## Status\n- Iteration: %d of %d\n- Last gate failed: %s\n- Stuck count: %d (threshold: 3)\n\n## Last Error Output (verbatim)\n```\n%s\n```\n",
 		state.TaskID, state.Iteration, state.MaxIterations, gate, state.StuckCount, truncated)
-	return os.WriteFile(s.contextPath(), []byte(ctx), 0644)
+	return atomicWriteFile(s.contextPath(), []byte(ctx), 0644)
 }
 
 func (s *StateManager) UpdateWithEval(gate string, exitCode int, output string, evalRan bool, rawRef string, rawHash string) error {
@@ -176,7 +176,7 @@ func (s *StateManager) UpdateWithEval(gate string, exitCode int, output string, 
 
 	ctx := fmt.Sprintf("# Ralph Loop Context: %s\n\n## Status\n- Iteration: %d of %d\n- Last gate failed: %s\n- Stuck count: %d (threshold: 3)\n\n## Last Error Output (verbatim)\n```\n%s\n```\n",
 		state.TaskID, state.Iteration, state.MaxIterations, gate, state.StuckCount, truncated)
-	return os.WriteFile(s.contextPath(), []byte(ctx), 0644)
+	return atomicWriteFile(s.contextPath(), []byte(ctx), 0644)
 }
 
 func (s *StateManager) IncrementStrategyShift() error {
@@ -198,7 +198,41 @@ func (s *StateManager) save(state *State) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(s.statePath(), data, 0644)
+	return atomicWriteFile(s.statePath(), data, 0644)
+}
+
+// atomicWriteFile writes data via a temp file in the same directory, then
+// renames it to path. On POSIX, rename(2) is atomic, so readers never see
+// a partial file if the writer crashes or is killed mid-write.
+func atomicWriteFile(path string, data []byte, mode os.FileMode) error {
+	dir := filepath.Dir(path)
+	tmp, err := os.CreateTemp(dir, filepath.Base(path)+".tmp-*")
+	if err != nil {
+		return err
+	}
+	tmpName := tmp.Name()
+	defer func() {
+		// Best-effort cleanup if anything below failed; rename on success
+		// makes Remove a no-op.
+		os.Remove(tmpName)
+	}()
+
+	if _, err := tmp.Write(data); err != nil {
+		tmp.Close()
+		return err
+	}
+	if err := tmp.Chmod(mode); err != nil {
+		tmp.Close()
+		return err
+	}
+	if err := tmp.Sync(); err != nil {
+		tmp.Close()
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		return err
+	}
+	return os.Rename(tmpName, path)
 }
 
 func (s *StateManager) ContextFile() string { return s.contextPath() }
