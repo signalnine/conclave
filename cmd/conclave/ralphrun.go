@@ -50,6 +50,7 @@ func runRalphRun(cmd *cobra.Command, args []string) error {
 	maxIter, _ := cmd.Flags().GetInt("max-iterations")
 	implTimeout, _ := cmd.Flags().GetInt("implement-timeout")
 	testTimeout, _ := cmd.Flags().GetInt("test-timeout")
+	specTimeout, _ := cmd.Flags().GetInt("spec-timeout")
 	stuckThreshold, _ := cmd.Flags().GetInt("stuck-threshold")
 	skipSpec, _ := cmd.Flags().GetBool("skip-spec")
 	boardDir, _ := cmd.Flags().GetString("board-dir")
@@ -239,12 +240,31 @@ func runRalphRun(cmd *cobra.Command, args []string) error {
 		}
 		fmt.Fprintln(os.Stderr, "  Tests passed")
 
-		// Gate 3: Spec (optional)
+		// Gate 3: Spec (optional) -- ask claude to verify the implementation
+		// satisfies the task spec. Uses the working-tree diff as the evidence
+		// of what this iteration produced, falling back to the implementer's
+		// own output if the working tree is clean (nothing to diff).
 		if !skipSpec {
 			fmt.Fprintln(os.Stderr, "Gate 3: Spec compliance...")
-			if strings.Contains(testOutput, "SPEC_PASS") || strings.Contains(iterationOutput, "SPEC_PASS") {
-				fmt.Fprintln(os.Stderr, "  Spec compliance confirmed")
+
+			currentState, _ := g.DiffHead()
+			if strings.TrimSpace(currentState) == "" {
+				currentState = iterationOutput
 			}
+
+			specOutput, specErr := ralph.RunSpecGate(ctx, taskContent, currentState, specTimeout)
+			if specErr != nil {
+				fmt.Fprintf(os.Stderr, "  Spec gate error: %v\n", specErr)
+				sm.Update("spec", 1, specOutput)
+				continue
+			}
+			if !strings.Contains(specOutput, "SPEC_PASS") {
+				fmt.Fprintln(os.Stderr, "  Spec non-compliance detected:")
+				fmt.Fprintln(os.Stderr, specOutput)
+				sm.Update("spec", 1, specOutput)
+				continue
+			}
+			fmt.Fprintln(os.Stderr, "  Spec compliance confirmed")
 		}
 
 		// All gates passed — commit the work

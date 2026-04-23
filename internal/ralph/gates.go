@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"time"
 )
 
@@ -42,17 +43,32 @@ func RunTestGate(ctx context.Context, projectDir string, timeout int) (string, e
 	return string(out), err
 }
 
-func RunSpecGate(ctx context.Context, taskPromptFile, contextFile string, timeout int) (string, error) {
+// RunSpecGate asks claude to verify spec compliance given the task spec and
+// a representation of the current implementation state (typically a git diff
+// or the implementer's iteration output). Returns the claude output; callers
+// check for "SPEC_PASS" on its own line to confirm compliance.
+//
+// Prompt passed via stdin to avoid OS arg length limits.
+func RunSpecGate(ctx context.Context, spec, currentState string, timeout int) (string, error) {
 	ctx, cancel := context.WithTimeout(ctx, time.Duration(timeout)*time.Second)
 	defer cancel()
 
-	taskPrompt, _ := os.ReadFile(taskPromptFile)
-	ctxContent, _ := os.ReadFile(contextFile)
+	prompt := fmt.Sprintf(`Review this implementation for spec compliance.
 
-	prompt := fmt.Sprintf("Review this implementation for spec compliance.\n\n## Task Spec\n%s\n\n## Current State\n%s\n\n## Instructions\nCheck if the implementation satisfies ALL requirements in the spec.\nOutput 'SPEC_PASS' if compliant, or list missing/extra items if not.",
-		string(taskPrompt), string(ctxContent))
+## Task Spec
+%s
 
-	cmd := exec.CommandContext(ctx, "claude", "-p", prompt)
+## Current State
+%s
+
+## Instructions
+Check if the implementation satisfies ALL requirements in the spec.
+If fully compliant, output 'SPEC_PASS' on its own line.
+Otherwise, list missing, extra, or incorrect items (one per line)
+and do NOT output 'SPEC_PASS'.`, spec, currentState)
+
+	cmd := exec.CommandContext(ctx, "claude", "-p", "--output-format", "text")
+	cmd.Stdin = strings.NewReader(prompt)
 	out, err := cmd.CombinedOutput()
 	return string(out), err
 }

@@ -177,3 +177,45 @@ func TestDiffNameOnlyHead(t *testing.T) {
 		t.Errorf("missing file: %s", f)
 	}
 }
+
+func TestDiffHead(t *testing.T) {
+	dir := setupTestRepo(t)
+	g := New(dir)
+
+	os.WriteFile(filepath.Join(dir, "a.txt"), []byte("hello\n"), 0644)
+	run(t, dir, "git", "add", "-A")
+	run(t, dir, "git", "commit", "-m", "init")
+
+	// Modify a.txt (unstaged) and add b.txt (staged)
+	os.WriteFile(filepath.Join(dir, "a.txt"), []byte("changed\n"), 0644)
+	os.WriteFile(filepath.Join(dir, "b.txt"), []byte("new\n"), 0644)
+	run(t, dir, "git", "add", "b.txt")
+
+	out, err := g.DiffHead()
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Should include both the working-tree change to a.txt and the staged b.txt
+	if !contains(out, "a.txt") {
+		t.Errorf("expected a.txt in diff, got: %s", out)
+	}
+	if !contains(out, "b.txt") {
+		t.Errorf("expected b.txt in diff, got: %s", out)
+	}
+	if !contains(out, "changed") {
+		t.Errorf("expected 'changed' content in diff, got: %s", out)
+	}
+}
+
+func contains(haystack, needle string) bool {
+	return len(haystack) > 0 && len(needle) > 0 && indexOf(haystack, needle) >= 0
+}
+
+func indexOf(haystack, needle string) int {
+	for i := 0; i+len(needle) <= len(haystack); i++ {
+		if haystack[i:i+len(needle)] == needle {
+			return i
+		}
+	}
+	return -1
+}

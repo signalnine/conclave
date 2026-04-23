@@ -55,6 +55,12 @@ func (g *Git) Diff(base, head string) (string, error) {
 	return g.run("diff", base, head)
 }
 
+// DiffHead returns the diff of working tree + staged changes against HEAD.
+// Useful for summarizing what an in-progress iteration has changed.
+func (g *Git) DiffHead() (string, error) {
+	return g.run("diff", "HEAD")
+}
+
 func (g *Git) DiffNameOnly(base, head string) ([]string, error) {
 	out, err := g.run("diff", "--name-only", base, head)
 	if err != nil {
