@@ -178,6 +178,41 @@ func TestDiffNameOnlyHead(t *testing.T) {
 	}
 }
 
+func TestDiffNameOnlyHead_IncludesUnstaged(t *testing.T) {
+	// Regression: DiffNameOnlyHead previously passed --cached, so unstaged
+	// working-tree changes (the typical ralph-run state between Claude edits
+	// and the final commit) were invisible to the evaluator gate.
+	dir := setupTestRepo(t)
+	g := New(dir)
+
+	os.WriteFile(filepath.Join(dir, "a.txt"), []byte("hello"), 0644)
+	run(t, dir, "git", "add", "-A")
+	run(t, dir, "git", "commit", "-m", "init")
+
+	// Modify a.txt (unstaged), create b.txt (untracked but added -> staged),
+	// create c.txt (unstaged, untracked).
+	os.WriteFile(filepath.Join(dir, "a.txt"), []byte("changed"), 0644)
+	os.WriteFile(filepath.Join(dir, "b.txt"), []byte("new"), 0644)
+	run(t, dir, "git", "add", "b.txt")
+	os.WriteFile(filepath.Join(dir, "c.txt"), []byte("untracked"), 0644)
+
+	files, err := g.DiffNameOnlyHead()
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]bool{}
+	for _, f := range files {
+		got[f] = true
+	}
+	// a.txt (unstaged modification) and b.txt (staged) must both appear.
+	if !got["a.txt"] {
+		t.Errorf("expected unstaged a.txt in results, got %v", files)
+	}
+	if !got["b.txt"] {
+		t.Errorf("expected staged b.txt in results, got %v", files)
+	}
+}
+
 func TestDiffHead(t *testing.T) {
 	dir := setupTestRepo(t)
 	g := New(dir)

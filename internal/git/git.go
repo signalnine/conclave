@@ -137,8 +137,11 @@ func (g *Git) Push(branch string) error {
 	return err
 }
 
+// DiffNameOnlyHead returns the names of all files that differ from HEAD,
+// covering both staged and unstaged changes (the name-only counterpart of
+// DiffHead). Falls back to the staged-only view for repos without an HEAD.
 func (g *Git) DiffNameOnlyHead() ([]string, error) {
-	out, err := g.run("diff", "--name-only", "--cached", "HEAD")
+	out, err := g.run("diff", "--name-only", "HEAD")
 	if err != nil {
 		out, err = g.run("diff", "--name-only", "--cached")
 		if err != nil {
