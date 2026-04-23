@@ -40,17 +40,13 @@ func runSkillsList(cmd *cobra.Command, args []string) error {
 	}
 
 	conclaveSkillsDir := filepath.Join(pluginRoot, "skills")
-	discovered := skills.Discover(conclaveSkillsDir)
+	discovered := skills.DiscoverAs("conclave", conclaveSkillsDir)
 
 	// Also check personal skills
 	home, _ := os.UserHomeDir()
 	if home != "" {
 		personalDir := filepath.Join(home, ".claude", "skills")
-		personalSkills := skills.Discover(personalDir)
-		for i := range personalSkills {
-			personalSkills[i].Source = "personal"
-		}
-		discovered = append(discovered, personalSkills...)
+		discovered = append(discovered, skills.DiscoverAs("personal", personalDir)...)
 	}
 
 	if len(discovered) == 0 {
@@ -61,15 +57,11 @@ func runSkillsList(cmd *cobra.Command, args []string) error {
 	fmt.Printf("%-30s %-10s %s\n", "NAME", "SOURCE", "DESCRIPTION")
 	fmt.Printf("%-30s %-10s %s\n", "----", "------", "-----------")
 	for _, s := range discovered {
-		source := s.Source
-		if source == "" {
-			source = "conclave"
-		}
 		desc := s.Description
 		if len(desc) > 60 {
 			desc = desc[:57] + "..."
 		}
-		fmt.Printf("%-30s %-10s %s\n", s.Name, source, desc)
+		fmt.Printf("%-30s %-10s %s\n", s.Name, s.Source, desc)
 	}
 	return nil
 }

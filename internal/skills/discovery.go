@@ -16,6 +16,12 @@ type Skill struct {
 }
 
 func Discover(dirs ...string) []Skill {
+	return DiscoverAs("", dirs...)
+}
+
+// DiscoverAs is like Discover but tags each returned skill with the given source
+// ("conclave" or "personal"), matching the Source field documented on Skill.
+func DiscoverAs(source string, dirs ...string) []Skill {
 	var skills []Skill
 	for _, dir := range dirs {
 		entries, err := os.ReadDir(dir)
@@ -39,6 +45,7 @@ func Discover(dirs ...string) []Skill {
 				Description: desc,
 				Path:        filepath.Join(dir, e.Name()),
 				SkillFile:   skillFile,
+				Source:      source,
 			})
 		}
 	}

@@ -61,3 +61,24 @@ func TestDiscover_NonexistentDir(t *testing.T) {
 		t.Errorf("got %d skills from nonexistent dir", len(skills))
 	}
 }
+
+func TestDiscover_SetsSource(t *testing.T) {
+	dir := t.TempDir()
+	createSkill(t, dir, "s1", "---\nname: s1\ndescription: Use when testing\n---\nBody.\n")
+	skills := DiscoverAs("conclave", dir)
+	if len(skills) != 1 {
+		t.Fatalf("got %d skills, want 1", len(skills))
+	}
+	if skills[0].Source != "conclave" {
+		t.Errorf("Source = %q, want conclave", skills[0].Source)
+	}
+}
+
+func TestDiscover_PersonalSource(t *testing.T) {
+	dir := t.TempDir()
+	createSkill(t, dir, "s1", "---\nname: s1\ndescription: Use when testing\n---\nBody.\n")
+	skills := DiscoverAs("personal", dir)
+	if skills[0].Source != "personal" {
+		t.Errorf("Source = %q, want personal", skills[0].Source)
+	}
+}
