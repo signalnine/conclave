@@ -9,3 +9,5 @@ docs/plans/.brainstorm-checkpoint-*.json
 .ralph_state.json
 .ralph_context.md
 .ralph.lock
+.dolt/
+*.db

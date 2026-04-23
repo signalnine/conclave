@@ -1,0 +1,7 @@
+{
+  "database": "dolt",
+  "backend": "dolt",
+  "dolt_mode": "embedded",
+  "dolt_database": "conclave",
+  "project_id": "9058d9f9-77cb-440a-900a-818a6265a0fc"
+}
