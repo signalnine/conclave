@@ -26,10 +26,17 @@ func BranchFailedWork(g *gitpkg.Git, taskID string, state *State) error {
 				return fmt.Errorf("creating failure branch: %w", err)
 			}
 		}
-		g.AddAll()
+		if err := g.AddAll(); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: staging failed work: %v\n", err)
+		}
 		msg := fmt.Sprintf("Ralph Loop failed: %s (on %s)", taskID, currentBranch)
-		g.CommitAllowEmpty(msg)
-		g.CheckoutBranch(currentBranch)
+		if err := g.CommitAllowEmpty(msg); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: committing to failure branch %s: %v\n", branchName, err)
+		}
+		if err := g.CheckoutBranch(currentBranch); err != nil {
+			fmt.Fprintf(os.Stderr, "WARNING: stranded on failure branch %s; checkout %s failed: %v\n", branchName, currentBranch, err)
+			return fmt.Errorf("stranded on failure branch %s (checkout %s failed): %w", branchName, currentBranch, err)
+		}
 		fmt.Fprintf(os.Stderr, "Failed work preserved in branch: %s\n", branchName)
 		return nil
 	}
@@ -42,13 +49,19 @@ func BranchFailedWork(g *gitpkg.Git, taskID string, state *State) error {
 		}
 	}
 
-	g.AddAll()
+	if err := g.AddAll(); err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: staging failed work: %v\n", err)
+	}
 	msg := fmt.Sprintf("Ralph Loop failed: %s\n\nIterations: %d/%d\nLast gate: %s\nError hash: %s",
 		taskID, state.Iteration, state.MaxIterations, state.LastGate, state.ErrorHash)
-	g.CommitAllowEmpty(msg)
+	if err := g.CommitAllowEmpty(msg); err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: committing to failure branch %s: %v\n", branchName, err)
+	}
 	g.Push(branchName) // non-fatal if no remote
 
-	g.CheckoutBranch(currentBranch)
+	if err := g.CheckoutBranch(currentBranch); err != nil {
+		return fmt.Errorf("stranded on failure branch %s (checkout %s failed): %w", branchName, currentBranch, err)
+	}
 	fmt.Fprintf(os.Stderr, "Failed work preserved in branch: %s\n", branchName)
 	return nil
 }
