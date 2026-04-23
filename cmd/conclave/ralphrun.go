@@ -258,7 +258,7 @@ func runRalphRun(cmd *cobra.Command, args []string) error {
 				sm.Update("spec", 1, specOutput)
 				continue
 			}
-			if !strings.Contains(specOutput, "SPEC_PASS") {
+			if !ralph.SpecPassed(specOutput) {
 				fmt.Fprintln(os.Stderr, "  Spec non-compliance detected:")
 				fmt.Fprintln(os.Stderr, specOutput)
 				sm.Update("spec", 1, specOutput)

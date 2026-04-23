@@ -77,3 +77,17 @@ func fileExists(path string) bool {
 	_, err := os.Stat(path)
 	return err == nil
 }
+
+// SpecPassed reports whether the spec gate output indicates compliance.
+// It returns true only when SPEC_PASS appears on its own line (ignoring
+// surrounding whitespace). A bare substring match would falsely pass when
+// the LLM mentions SPEC_PASS in explanatory prose such as
+// "I cannot output SPEC_PASS because tests fail."
+func SpecPassed(output string) bool {
+	for _, line := range strings.Split(output, "\n") {
+		if strings.TrimSpace(line) == "SPEC_PASS" {
+			return true
+		}
+	}
+	return false
+}

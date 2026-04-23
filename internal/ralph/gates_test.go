@@ -83,3 +83,30 @@ echo "- greet() not implemented"
 		t.Errorf("non-compliance details missing; got: %q", out)
 	}
 }
+
+func TestSpecPassed(t *testing.T) {
+	tests := []struct {
+		name   string
+		output string
+		want   bool
+	}{
+		{"bare token", "SPEC_PASS", true},
+		{"trailing newline", "SPEC_PASS\n", true},
+		{"leading commentary then token line", "Compliance verified.\nSPEC_PASS\n", true},
+		{"token with surrounding whitespace on its own line", "analysis...\n   SPEC_PASS   \ntrailing\n", true},
+		{"windows line endings", "ok\r\nSPEC_PASS\r\n", true},
+		{"negative prose mentioning token", "I cannot output SPEC_PASS because tests fail.", false},
+		{"token embedded mid-sentence", "The gate will accept SPEC_PASS on its own line.", false},
+		{"token as code fence content", "```\nSPEC_PASS\n```", true},
+		{"no token at all", "- Missing test file\n- greet() not implemented\n", false},
+		{"empty output", "", false},
+		{"token prefixed by bullet", "- SPEC_PASS\n", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := SpecPassed(tt.output); got != tt.want {
+				t.Errorf("SpecPassed(%q) = %v, want %v", tt.output, got, tt.want)
+			}
+		})
+	}
+}
