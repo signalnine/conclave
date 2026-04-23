@@ -118,7 +118,7 @@ func TestDefaults(t *testing.T) {
 		t.Setenv(k, "")
 	}
 	cfg := Load()
-	if cfg.AnthropicModel != "claude-sonnet-4-6" {
+	if cfg.AnthropicModel != "claude-opus-4-6" {
 		t.Errorf("AnthropicModel = %q", cfg.AnthropicModel)
 	}
 	if cfg.GeminiModel != "gemini-3.1-pro-preview" {

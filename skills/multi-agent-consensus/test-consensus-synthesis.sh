@@ -562,15 +562,49 @@ echo "All Stage 2 tests passed!"
 echo ""
 echo "Running configuration tests..."
 
+# Tests 31-33 verify the timeout configuration plumbing. They short-circuit
+# the real API calls with a stub so timing is deterministic regardless of
+# which upstream model is set (Opus is slow enough to swamp the timeout
+# budgets when the real API is called).
+#
+# The stub sleeps for the injected duration, writes a mock response, and
+# returns success. Each test sets the sleep to a value that is LESS than
+# the effective stage-1 timeout so stage 1 finishes cleanly.
+
+STUB_PREAMBLE='run_claude() {
+    sleep __SLEEP__;
+    echo "mock analysis" > "$2"
+    return 0
+}
+run_gemini() {
+    echo "mock analysis" > "$2"
+    return 0
+}
+run_codex() {
+    echo "mock analysis" > "$2"
+    return 0
+}
+'
+
+inject_stub() {
+    local sleep_sec="$1"
+    local src="$2"
+    local preamble="${STUB_PREAMBLE//__SLEEP__/$sleep_sec}"
+    # Prepend the stub as function redefinitions at the top of the script
+    # (after the shebang and initial `set`). Bash honors the last definition.
+    awk -v p="$preamble" '
+        NR==1 { print; print "set +u"; print p; print "set -u"; next }
+        { print }
+    ' "$src"
+}
+
 # Test 31: Configurable timeout via CLI flag
 echo -n "Test 31: Configurable timeout via CLI flag... "
-# Create a script that sleeps for 35s (less than custom 45s timeout, more than default 60s)
 TIMEOUT_SCRIPT=$(mktemp)
-cp "$SCRIPT" "$TIMEOUT_SCRIPT"
-sed -i 's/run_claude() {/run_claude() {\n    sleep 35;/' "$TIMEOUT_SCRIPT"
+inject_stub 5 "$SCRIPT" > "$TIMEOUT_SCRIPT"
 
-# Run with custom timeout - should NOT timeout
-output=$(timeout 50s bash "$TIMEOUT_SCRIPT" --mode=general-prompt --prompt="test" --stage1-timeout=45 2>&1 || true)
+# sleep=5s, flag=15s: should NOT timeout.
+output=$(timeout 30s bash "$TIMEOUT_SCRIPT" --mode=general-prompt --prompt="test" --stage1-timeout=15 2>&1 || true)
 
 rm -f "$TIMEOUT_SCRIPT"
 
@@ -578,19 +612,18 @@ if ! echo "$output" | grep -q "Timeout reached"; then
     echo "PASS (custom timeout respected)"
 else
     echo "FAIL"
-    echo "  Expected: No timeout with 45s custom timeout"
+    echo "  Expected: No timeout with 15s custom timeout and 5s sleep"
     echo "  Got: Timeout message appeared"
+    echo "$output" | grep -i timeout | head -5
     exit 1
 fi
 
 # Test 32: Configurable timeout via environment variable
 echo -n "Test 32: Configurable timeout via environment variable... "
 TIMEOUT_SCRIPT=$(mktemp)
-cp "$SCRIPT" "$TIMEOUT_SCRIPT"
-sed -i 's/run_claude() {/run_claude() {\n    sleep 35;/' "$TIMEOUT_SCRIPT"
+inject_stub 5 "$SCRIPT" > "$TIMEOUT_SCRIPT"
 
-# Run with environment variable - should NOT timeout
-output=$(CONSENSUS_STAGE1_TIMEOUT=45 timeout 50s bash "$TIMEOUT_SCRIPT" --mode=general-prompt --prompt="test" 2>&1 || true)
+output=$(CONSENSUS_STAGE1_TIMEOUT=15 timeout 30s bash "$TIMEOUT_SCRIPT" --mode=general-prompt --prompt="test" 2>&1 || true)
 
 rm -f "$TIMEOUT_SCRIPT"
 
@@ -598,20 +631,19 @@ if ! echo "$output" | grep -q "Timeout reached"; then
     echo "PASS (environment variable respected)"
 else
     echo "FAIL"
-    echo "  Expected: No timeout with 45s env var timeout"
+    echo "  Expected: No timeout with 15s env-var timeout and 5s sleep"
     echo "  Got: Timeout message appeared"
+    echo "$output" | grep -i timeout | head -5
     exit 1
 fi
 
 # Test 33: CLI flag overrides environment variable
 echo -n "Test 33: CLI flag overrides environment variable... "
 TIMEOUT_SCRIPT=$(mktemp)
-cp "$SCRIPT" "$TIMEOUT_SCRIPT"
-sed -i 's/run_claude() {/run_claude() {\n    sleep 25;/' "$TIMEOUT_SCRIPT"
+inject_stub 5 "$SCRIPT" > "$TIMEOUT_SCRIPT"
 
-# Set env var to 20s but CLI flag to 30s - should NOT timeout.
-# Outer timeout budget: sleep 25 + API (~3s) = ~28s stage 1, plus stage 2 (~10s) ~= 40s total.
-output=$(CONSENSUS_STAGE1_TIMEOUT=20 timeout 60s bash "$TIMEOUT_SCRIPT" --mode=general-prompt --prompt="test" --stage1-timeout=30 2>&1 || true)
+# sleep=5s. env=3s would timeout. flag=15s should override and succeed.
+output=$(CONSENSUS_STAGE1_TIMEOUT=3 timeout 30s bash "$TIMEOUT_SCRIPT" --mode=general-prompt --prompt="test" --stage1-timeout=15 2>&1 || true)
 
 rm -f "$TIMEOUT_SCRIPT"
 
@@ -619,8 +651,9 @@ if ! echo "$output" | grep -q "Timeout reached"; then
     echo "PASS (CLI flag overrides env var)"
 else
     echo "FAIL"
-    echo "  Expected: No timeout (CLI flag 30s > sleep 25s)"
+    echo "  Expected: No timeout (CLI flag 15s > sleep 5s)"
     echo "  Got: Timeout message appeared"
+    echo "$output" | grep -i timeout | head -5
     exit 1
 fi
 

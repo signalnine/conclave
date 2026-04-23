@@ -64,7 +64,7 @@ ENVIRONMENT VARIABLES:
     OPENAI_API_KEY            API key for OpenAI Codex agent
 
   Optional configuration:
-    ANTHROPIC_MODEL           Claude model (default: claude-opus-4-5-20251101)
+    ANTHROPIC_MODEL           Claude model (default: claude-opus-4-6)
     ANTHROPIC_MAX_TOKENS      Max tokens for Claude (default: 16000)
     GEMINI_MODEL              Gemini model (default: gemini-3-pro-preview)
     OPENAI_MODEL              OpenAI model (default: gpt-5.1-codex-max)
@@ -385,7 +385,7 @@ run_claude() {
     fi
 
     # Prepare the API request
-    local model="${ANTHROPIC_MODEL:-claude-opus-4-5-20251101}"
+    local model="${ANTHROPIC_MODEL:-claude-opus-4-6}"
     local max_tokens="${ANTHROPIC_MAX_TOKENS:-16000}"
 
     # Escape the prompt for JSON

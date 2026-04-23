@@ -62,7 +62,7 @@ func Load() *Config {
 		GeminiAPIKey:    coalesce(os.Getenv("GEMINI_API_KEY"), os.Getenv("GOOGLE_API_KEY")),
 		OpenAIAPIKey:    os.Getenv("OPENAI_API_KEY"),
 
-		AnthropicModel:     envOr("ANTHROPIC_MODEL", "claude-sonnet-4-6"),
+		AnthropicModel:     envOr("ANTHROPIC_MODEL", "claude-opus-4-6"),
 		AnthropicMaxTokens: envInt("ANTHROPIC_MAX_TOKENS", 16000),
 		GeminiModel:        envOr("GEMINI_MODEL", "gemini-3.1-pro-preview"),
 		OpenAIModel:        envOr("OPENAI_MODEL", "gpt-5.4"),
@@ -73,7 +73,7 @@ func Load() *Config {
 
 		OpenRouterAPIKey:      os.Getenv("OPENROUTER_API_KEY"),
 		OpenRouterBaseURL:    envOr("OPENROUTER_BASE_URL", "https://openrouter.ai/api"),
-		OpenRouterClaudeModel: envOr("OPENROUTER_CLAUDE_MODEL", "anthropic/claude-sonnet-4.6"),
+		OpenRouterClaudeModel: envOr("OPENROUTER_CLAUDE_MODEL", "anthropic/claude-opus-4.6"),
 		OpenRouterGeminiModel: envOr("OPENROUTER_GEMINI_MODEL", "google/gemini-3.1-pro-preview"),
 		OpenRouterCodexModel:  envOr("OPENROUTER_CODEX_MODEL", "openai/gpt-5.4"),
 
