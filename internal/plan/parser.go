@@ -20,6 +20,7 @@ type Task struct {
 var taskHeaderRe = regexp.MustCompile(`^#{2,3} Task (\d+): (.+)`)
 var fileLineRe = regexp.MustCompile("^- (?:Create|Modify|Test): `([^`]+)`")
 var depsRe = regexp.MustCompile(`Task (\d+)`)
+var lineRangeSuffixRe = regexp.MustCompile(`:\d+(?:-\d+)?$`)
 
 func ParsePlan(r io.Reader) ([]Task, error) {
 	scanner := bufio.NewScanner(r)
@@ -63,11 +64,9 @@ func ParsePlan(r io.Reader) ([]Task, error) {
 		if collectingFiles {
 			if m := fileLineRe.FindStringSubmatch(line); m != nil {
 				path := m[1]
-				// Strip line range suffix like :10-20
-				if idx := strings.LastIndex(path, ":"); idx > 0 {
-					if _, err := strconv.Atoi(string(path[idx+1])); err == nil {
-						path = path[:idx]
-					}
+				// Strip line range suffix like :10 or :10-20
+				if loc := lineRangeSuffixRe.FindStringIndex(path); loc != nil {
+					path = path[:loc[0]]
 				}
 				current.FilePaths = append(current.FilePaths, path)
 				continue

@@ -161,6 +161,38 @@ func TestWaveCount_EmptyReturnsZero(t *testing.T) {
 	}
 }
 
+func TestParsePlan_TrailingColonDoesNotPanic(t *testing.T) {
+	// Regression: parser previously panicked with index-out-of-range on
+	// file paths ending with ':' because path[idx+1] indexed past the end.
+	input := "## Task 1: Trailing Colon\n**Files:**\n- Create: `foo.go:`\n**Dependencies:** None\n"
+	tasks, err := ParsePlan(strings.NewReader(input))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(tasks) != 1 || len(tasks[0].FilePaths) != 1 {
+		t.Fatalf("got %d tasks / %d paths", len(tasks), len(tasks[0].FilePaths))
+	}
+	// Trailing colon is not a line range, so the path should be preserved.
+	if tasks[0].FilePaths[0] != "foo.go:" {
+		t.Errorf("FilePaths[0] = %q, want foo.go:", tasks[0].FilePaths[0])
+	}
+}
+
+func TestParsePlan_NonNumericSuffixPreserved(t *testing.T) {
+	// Regression: parser only inspected the byte immediately after ':' so
+	// a path like 'foo.go:1abc' was incorrectly truncated to 'foo.go'.
+	// Only legitimate line-range suffixes (digits, optionally with '-N')
+	// should be stripped.
+	input := "## Task 1: Odd Suffix\n**Files:**\n- Create: `foo.go:1abc`\n**Dependencies:** None\n"
+	tasks, err := ParsePlan(strings.NewReader(input))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if tasks[0].FilePaths[0] != "foo.go:1abc" {
+		t.Errorf("FilePaths[0] = %q, want foo.go:1abc", tasks[0].FilePaths[0])
+	}
+}
+
 func TestDetectFileOverlaps_CanInduceCycle(t *testing.T) {
 	// Regression: DetectFileOverlaps adds tasks[i].ID as dep of tasks[j]
 	// for i<j. When task 5 comes before task 3 with file overlap and task 5
