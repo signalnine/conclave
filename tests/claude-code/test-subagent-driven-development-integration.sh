@@ -147,6 +147,21 @@ IMPORTANT: Follow the skill exactly. I will be verifying that you:
 
 Begin now. Execute the plan."
 
+# Session-dir key: Claude Code uses the RESOLVED absolute path (no `..`).
+# Compute it BEFORE running claude so we can snapshot the pre-existing
+# session files and identify the new one deterministically after the run.
+CLAUDE_WORKING_DIR=$(cd "$SCRIPT_DIR/../.." && pwd)
+WORKING_DIR_ESCAPED=$(echo "$CLAUDE_WORKING_DIR" | sed 's/\//-/g')
+SESSION_DIR="$HOME/.claude/projects/$WORKING_DIR_ESCAPED"
+
+# Snapshot existing session files (if any) so we don't pick up an unrelated
+# concurrent session. This matters when the test is invoked from inside
+# another claude conversation: -mmin alone would return whichever session
+# was touched most recently.
+mkdir -p "$SESSION_DIR"
+SESSION_BASELINE=$(mktemp)
+find "$SESSION_DIR" -maxdepth 1 -name "*.jsonl" -type f 2>/dev/null | sort > "$SESSION_BASELINE"
+
 echo "Running Claude (output will be shown below and saved to $OUTPUT_FILE)..."
 echo "================================================================================"
 cd "$SCRIPT_DIR/../.." && timeout 1800 claude -p "$PROMPT" --allowed-tools=all --add-dir "$TEST_PROJECT" --permission-mode bypassPermissions 2>&1 | tee "$OUTPUT_FILE" || {
@@ -161,13 +176,14 @@ echo ""
 echo "Execution complete. Analyzing results..."
 echo ""
 
-# Find the session transcript
-# Session files are in ~/.claude/projects/-<working-dir>/<session-id>.jsonl
-WORKING_DIR_ESCAPED=$(echo "$SCRIPT_DIR/../.." | sed 's/\//-/g' | sed 's/^-//')
-SESSION_DIR="$HOME/.claude/projects/$WORKING_DIR_ESCAPED"
-
-# Find the most recent session file (created during this test run)
-SESSION_FILE=$(find "$SESSION_DIR" -name "*.jsonl" -type f -mmin -60 2>/dev/null | sort -r | head -1)
+# Identify the session file created by the run above: anything in SESSION_DIR
+# that was NOT present in the baseline snapshot. If multiple new sessions
+# appear (unlikely but possible), prefer the most recently modified one.
+SESSION_AFTER=$(mktemp)
+find "$SESSION_DIR" -maxdepth 1 -name "*.jsonl" -type f 2>/dev/null | sort > "$SESSION_AFTER"
+SESSION_FILE=$(comm -13 "$SESSION_BASELINE" "$SESSION_AFTER" | \
+    xargs -r ls -t 2>/dev/null | head -1)
+rm -f "$SESSION_BASELINE" "$SESSION_AFTER"
 
 if [ -z "$SESSION_FILE" ]; then
     echo "ERROR: Could not find session transcript file"
