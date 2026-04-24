@@ -143,6 +143,30 @@ func TestCommitAndTestCounts(t *testing.T) {
 	}
 }
 
+func TestLintCheck_RecognizesCommonLinters(t *testing.T) {
+	tests := []struct {
+		name string
+		cmd  string
+		want bool
+	}{
+		{"golangci-lint", "golangci-lint run ./...", true},
+		{"npm run lint", "npm run lint", true},
+		{"npx eslint", "npx eslint src/", true},
+		{"ruff", "ruff check .", true},
+		{"cargo clippy", "cargo clippy", true},
+		{"go test is not lint", "go test ./...", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			trace := mkTrace(bash(tt.cmd))
+			p := ExtractBehaviors(trace)
+			if p.LintCheck != tt.want {
+				t.Errorf("LintCheck for %q = %v, want %v", tt.cmd, p.LintCheck, tt.want)
+			}
+		})
+	}
+}
+
 func TestDiffReview(t *testing.T) {
 	tests := []struct {
 		name  string

@@ -272,7 +272,7 @@ func isBuildCmd(cmd string) bool {
 
 func isLintCmd(cmd string) bool {
 	lower := strings.ToLower(cmd)
-	patterns := []string{"npm run lint", "npx eslint", "eslint ", "golint", "ruff ", "cargo clippy"}
+	patterns := []string{"npm run lint", "npx eslint", "eslint ", "golangci-lint", "golint", "ruff ", "cargo clippy"}
 	for _, p := range patterns {
 		if strings.Contains(lower, p) {
 			return true
