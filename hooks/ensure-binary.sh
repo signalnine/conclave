@@ -8,11 +8,6 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
 PLUGIN_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 BINARY="${PLUGIN_ROOT}/conclave"
 
-# If binary exists and is executable, run it directly
-if [ -x "$BINARY" ]; then
-    exec "$BINARY" hook session-start
-fi
-
 # Detect OS
 case "$(uname -s)" in
     Linux)  OS="linux" ;;
@@ -33,6 +28,19 @@ case "$(uname -m)" in
         ;;
 esac
 
+# Probe binary: an unsigned cross-compiled darwin/arm64 binary will be killed
+# by the macOS kernel. A broken binary cached from a prior run would make
+# `exec` abort the script (exit 127) before the fallback could run, so we
+# verify it works first and remove it if not.
+binary_works() {
+    [ -x "$1" ] && "$1" version >/dev/null 2>&1
+}
+
+if binary_works "$BINARY"; then
+    exec "$BINARY" hook session-start
+fi
+rm -f "$BINARY"
+
 # Read version from plugin.json (no jq dependency)
 VERSION=$(grep -o '"version"[[:space:]]*:[[:space:]]*"[^"]*"' "${PLUGIN_ROOT}/.claude-plugin/plugin.json" | grep -o '"[^"]*"$' | tr -d '"')
 
@@ -45,8 +53,16 @@ URL="https://github.com/signalnine/conclave/releases/download/v${VERSION}/concla
 
 if curl -fsSL -o "$BINARY" "$URL" 2>/dev/null; then
     chmod +x "$BINARY"
-    exec "$BINARY" hook session-start
+    # Ad-hoc sign on macOS: cross-compiled Mach-O binaries built on Linux
+    # runners have no signature, and arm64 macOS rejects unsigned binaries.
+    if [ "$OS" = "darwin" ] && command -v codesign >/dev/null 2>&1; then
+        codesign --sign - --force "$BINARY" >/dev/null 2>&1 || true
+    fi
+    if binary_works "$BINARY"; then
+        exec "$BINARY" hook session-start
+    fi
+    rm -f "$BINARY"
 fi
 
-# Download failed, fall back to bash script
+# Download failed or binary still doesn't run — fall back to bash script
 exec "${SCRIPT_DIR}/session-start.sh"
