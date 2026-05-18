@@ -165,7 +165,12 @@ func runRalphRun(cmd *cobra.Command, args []string) error {
 		}
 
 		implCtx, implCancel := context.WithTimeout(ctx, time.Duration(implTimeout)*time.Second)
-		implArgs := []string{"-p"}
+		// --permission-mode bypassPermissions is required for headless claude
+		// to actually write files. Without it, the inner claude hangs on a
+		// permission prompt (no TTY to answer it) until timeout, while
+		// printing "Awaiting permission..." that ralph-run mistakes for
+		// successful progress.
+		implArgs := []string{"-p", "--permission-mode", "bypassPermissions"}
 		if implModel != "" {
 			implArgs = append(implArgs, "--model", implModel)
 		}
@@ -267,9 +272,13 @@ func runRalphRun(cmd *cobra.Command, args []string) error {
 			fmt.Fprintln(os.Stderr, "  Spec compliance confirmed")
 		}
 
-		// All gates passed — commit the work
+		// All gates passed — commit the work. Exclude ralph's own state
+		// files: otherwise `git add -A` sweeps them up and HasStagedChanges()
+		// returns true even when claude made no changes to the project,
+		// hiding silent failures behind a "successful" commit of nothing
+		// but `.ralph_state.json` and friends.
 		fmt.Fprintln(os.Stderr, "\nAll gates passed! Committing...")
-		if err := g.AddAll(); err != nil {
+		if err := g.AddAllExcept(".ralph.lock", ".ralph_state.json", ".ralph_context.md", ".ralph_raw_*.txt"); err != nil {
 			fmt.Fprintf(os.Stderr, "  Warning: git add failed: %v\n", err)
 		}
 		if g.HasStagedChanges() {

@@ -185,6 +185,36 @@ func TestBuildRalphCommand(t *testing.T) {
 	}
 }
 
+// TestExecuteWave_NoOpSubprocessMarkedFailed is the regression test for
+// the silent-success bug surfaced via parallel-run: ralph-run exited 0
+// from inside its worktree without producing any commits (the inner
+// claude was stuck on a permission prompt that never got answered).
+// parallel-run used to trust the exit code, mark the task COMPLETED,
+// and merge nothing. After the fix it verifies the branch advanced.
+func TestExecuteWave_NoOpSubprocessMarkedFailed(t *testing.T) {
+	dir, g := setupRepo(t)
+	worktreeDir := filepath.Join(dir, ".worktrees")
+
+	tasks := []plan.Task{
+		{ID: 1, Title: "NoOp Task", Description: "### Task 1: NoOp\nThis subprocess exits 0 without committing."},
+	}
+	waves := map[int]int{1: 0}
+	sched := NewScheduler(tasks, waves, 3)
+
+	// Subprocess exits 0 but never creates a commit on the task branch.
+	cmdBuilder := func(worktree, taskSpec string, taskID int, boardDir, boardTopic string) *exec.Cmd {
+		return exec.Command("bash", "-c", "exit 0")
+	}
+
+	if err := ExecuteWave(context.Background(), g, sched, tasks, 0, worktreeDir, "", cmdBuilder); err != nil {
+		t.Fatal(err)
+	}
+
+	if sched.Status(1) != StatusFailed {
+		t.Errorf("expected StatusFailed for no-op subprocess, got %s", sched.Status(1))
+	}
+}
+
 func min(a, b int) int {
 	if a < b {
 		return a

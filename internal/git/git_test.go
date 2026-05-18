@@ -242,6 +242,88 @@ func TestDiffHead(t *testing.T) {
 	}
 }
 
+// TestAddAllExcept_SkipsRalphStateFiles is the regression test for the
+// silent-success bug in ralph-run: `git add -A` was sweeping up ralph's
+// own state files (.ralph_state.json, .ralph_context.md, .ralph.lock),
+// making HasStagedChanges() return true even when claude made no changes
+// to the actual project. The "successful" commit then contained only
+// ralph noise, masking the failure to parallel-run upstream.
+func TestAddAllExcept_SkipsRalphStateFiles(t *testing.T) {
+	dir := setupTestRepo(t)
+	g := New(dir)
+
+	// Simulate ralph-run leaving its state files behind with no real
+	// project changes.
+	for _, name := range []string{".ralph_state.json", ".ralph_context.md", ".ralph.lock", ".ralph_raw_1.txt"} {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte("ralph state"), 0644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	if err := g.AddAllExcept(".ralph.lock", ".ralph_state.json", ".ralph_context.md", ".ralph_raw_*.txt"); err != nil {
+		t.Fatalf("AddAllExcept: %v", err)
+	}
+
+	if g.HasStagedChanges() {
+		t.Error("expected no staged changes (only ralph state files exist), but HasStagedChanges returned true")
+	}
+
+	// Now add a real project file alongside the noise — only the real
+	// file should be staged.
+	if err := os.WriteFile(filepath.Join(dir, "real.txt"), []byte("hello"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := g.AddAllExcept(".ralph.lock", ".ralph_state.json", ".ralph_context.md", ".ralph_raw_*.txt"); err != nil {
+		t.Fatalf("AddAllExcept (with real file): %v", err)
+	}
+	if !g.HasStagedChanges() {
+		t.Error("expected staged changes for real.txt, got none")
+	}
+	staged, err := g.run("diff", "--cached", "--name-only")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !contains(staged, "real.txt") {
+		t.Errorf("expected real.txt in staged set, got: %q", staged)
+	}
+	for _, name := range []string{".ralph_state.json", ".ralph_context.md", ".ralph.lock", ".ralph_raw_1.txt"} {
+		if contains(staged, name) {
+			t.Errorf("expected %s NOT to be staged, but staged set was: %q", name, staged)
+		}
+	}
+}
+
+func TestRevList_EmptyWhenBranchHasNoNewCommits(t *testing.T) {
+	dir := setupTestRepo(t)
+	g := New(dir)
+	// Create a branch at HEAD with no new commits.
+	run(t, dir, "git", "branch", "feature")
+	out, err := g.RevList("HEAD..feature")
+	if err != nil {
+		t.Fatalf("RevList: %v", err)
+	}
+	if out != "" {
+		t.Errorf("expected empty rev-list for branch with no new commits, got: %q", out)
+	}
+
+	// Add a commit on the branch.
+	run(t, dir, "git", "checkout", "feature")
+	if err := os.WriteFile(filepath.Join(dir, "x.txt"), []byte("x"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	run(t, dir, "git", "add", "x.txt")
+	run(t, dir, "git", "commit", "-m", "add x")
+	run(t, dir, "git", "checkout", "main")
+
+	out, err = g.RevList("HEAD..feature")
+	if err != nil {
+		t.Fatalf("RevList: %v", err)
+	}
+	if out == "" {
+		t.Error("expected non-empty rev-list for branch with new commit, got empty")
+	}
+}
+
 func contains(haystack, needle string) bool {
 	return len(haystack) > 0 && len(needle) > 0 && indexOf(haystack, needle) >= 0
 }

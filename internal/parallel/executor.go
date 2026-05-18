@@ -45,6 +45,7 @@ func ExecuteWave(ctx context.Context, g *gitpkg.Git, sched *Scheduler, tasks []p
 	type result struct {
 		taskID   int
 		worktree string
+		branch   string
 		err      error
 	}
 
@@ -60,6 +61,7 @@ func ExecuteWave(ctx context.Context, g *gitpkg.Git, sched *Scheduler, tasks []p
 		slug := slugify(task.Title)
 		branchName := fmt.Sprintf("task-%d-%s", taskID, slug)
 		worktreePath := filepath.Join(worktreeBaseDir, branchName)
+		taskBranch := branchName
 
 		// Clean up stale branch/worktree from previous runs
 		exec.Command("git", "-C", g.Dir, "branch", "-D", branchName).Run()
@@ -87,14 +89,14 @@ func ExecuteWave(ctx context.Context, g *gitpkg.Git, sched *Scheduler, tasks []p
 		sched.MarkRunning(taskID, 0, worktreePath)
 
 		wg.Add(1)
-		go func(tid int, wt string, spec string) {
+		go func(tid int, wt string, br string, spec string) {
 			defer wg.Done()
 			cmd := buildCmd(wt, spec, tid, busDir, waveTopic)
 			cmd.Stdout = os.Stderr
 			cmd.Stderr = os.Stderr
 			err := cmd.Run()
-			results <- result{taskID: tid, worktree: wt, err: err}
-		}(taskID, worktreePath, task.Description)
+			results <- result{taskID: tid, worktree: wt, branch: br, err: err}
+		}(taskID, worktreePath, taskBranch, task.Description)
 	}
 
 	// Wait for all tasks to finish
@@ -107,10 +109,20 @@ func ExecuteWave(ctx context.Context, g *gitpkg.Git, sched *Scheduler, tasks []p
 		if r.err != nil {
 			fmt.Fprintf(os.Stderr, "  Task %d: FAILED (%v)\n", r.taskID, r.err)
 			sched.MarkDone(r.taskID, StatusFailed)
-		} else {
-			fmt.Fprintf(os.Stderr, "  Task %d: COMPLETED\n", r.taskID)
-			sched.MarkDone(r.taskID, StatusCompleted)
+			continue
 		}
+		// ralph-run returned 0, but that's only a necessary condition for
+		// success — not a sufficient one. If the inner claude silently no-op'd
+		// (e.g. permission prompt timeout), ralph would still exit clean. We
+		// verify the task branch actually advanced past the wave's base ref
+		// before counting this as completed.
+		if !branchAdvanced(g, headRef, r.branch) {
+			fmt.Fprintf(os.Stderr, "  Task %d: FAILED (subprocess exited 0 but produced no commits on %s)\n", r.taskID, r.branch)
+			sched.MarkDone(r.taskID, StatusFailed)
+			continue
+		}
+		fmt.Fprintf(os.Stderr, "  Task %d: COMPLETED\n", r.taskID)
+		sched.MarkDone(r.taskID, StatusCompleted)
 	}
 
 	// Merge completed tasks in plan order
@@ -172,6 +184,17 @@ func BuildRalphCommand(worktree, taskSpec string, taskID int, boardDir, boardTop
 	env = append(env, "CONCLAVE_NON_INTERACTIVE=1")
 	cmd.Env = env
 	return cmd
+}
+
+// branchAdvanced reports whether the task branch has at least one new
+// commit beyond baseRef. Used to detect silent no-op runs where the
+// subprocess exited 0 but produced no actual work.
+func branchAdvanced(g *gitpkg.Git, baseRef, branch string) bool {
+	out, err := g.RevList(baseRef + ".." + branch)
+	if err != nil {
+		return false
+	}
+	return strings.TrimSpace(out) != ""
 }
 
 func findTask(tasks []plan.Task, id int) *plan.Task {

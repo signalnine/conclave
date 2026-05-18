@@ -51,6 +51,12 @@ func (g *Git) MergeBase(a, b string) (string, error) {
 	return g.run("merge-base", a, b)
 }
 
+// RevList returns the output of `git rev-list <revspec>`, one SHA per
+// line. Empty output means no commits in the range.
+func (g *Git) RevList(revspec string) (string, error) {
+	return g.run("rev-list", revspec)
+}
+
 func (g *Git) Diff(base, head string) (string, error) {
 	return g.run("diff", base, head)
 }
@@ -99,6 +105,19 @@ func (g *Git) CommitAllowEmpty(msg string) error {
 
 func (g *Git) AddAll() error {
 	_, err := g.run("add", "-A")
+	return err
+}
+
+// AddAllExcept stages all changes except those matching the given path
+// patterns. Uses git pathspec exclusions (`:(exclude)<pattern>`), so
+// patterns can be literal paths or globs. Callers should pass patterns
+// without the `:(exclude)` prefix; this method adds it.
+func (g *Git) AddAllExcept(excludes ...string) error {
+	args := []string{"add", "-A", "--", "."}
+	for _, p := range excludes {
+		args = append(args, ":(exclude)"+p)
+	}
+	_, err := g.run(args...)
 	return err
 }
 

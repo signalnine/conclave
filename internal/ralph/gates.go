@@ -67,7 +67,7 @@ If fully compliant, output 'SPEC_PASS' on its own line.
 Otherwise, list missing, extra, or incorrect items (one per line)
 and do NOT output 'SPEC_PASS'.`, spec, currentState)
 
-	cmd := exec.CommandContext(ctx, "claude", "-p", "--output-format", "text")
+	cmd := exec.CommandContext(ctx, "claude", "-p", "--permission-mode", "bypassPermissions", "--output-format", "text")
 	cmd.Stdin = strings.NewReader(prompt)
 	out, err := cmd.CombinedOutput()
 	return string(out), err

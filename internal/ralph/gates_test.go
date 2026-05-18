@@ -56,6 +56,38 @@ echo "SPEC_PASS"
 	}
 }
 
+// TestRunSpecGate_PassesPermissionModeBypassPermissions verifies that
+// nested claude is invoked with --permission-mode bypassPermissions.
+// Without it, headless claude hangs on permission prompts (no TTY to
+// answer them) and ralph mistakes the timeout output for success — the
+// root cause of the parallel-run silent-success cascade.
+func TestRunSpecGate_PassesPermissionModeBypassPermissions(t *testing.T) {
+	tmp := t.TempDir()
+	argsPath := filepath.Join(tmp, "args.txt")
+	fakeScript := `#!/bin/bash
+printf '%s\n' "$@" > "` + argsPath + `"
+cat - > /dev/null
+echo "SPEC_PASS"
+`
+	fakeClaude := filepath.Join(tmp, "claude")
+	if err := os.WriteFile(fakeClaude, []byte(fakeScript), 0755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", tmp+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	if _, err := RunSpecGate(context.Background(), "spec", "state", 10); err != nil {
+		t.Fatal(err)
+	}
+	args, err := os.ReadFile(argsPath)
+	if err != nil {
+		t.Fatalf("reading recorded args: %v", err)
+	}
+	got := string(args)
+	if !strings.Contains(got, "--permission-mode") || !strings.Contains(got, "bypassPermissions") {
+		t.Errorf("expected --permission-mode bypassPermissions in claude args, got:\n%s", got)
+	}
+}
+
 // TestRunSpecGate_NonComplianceOutputSurfaced verifies the gate returns
 // claude's non-compliance feedback verbatim without SPEC_PASS so callers
 // can detect failure.

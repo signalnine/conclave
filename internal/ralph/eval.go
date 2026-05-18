@@ -226,7 +226,7 @@ func RunEvalGate(ctx context.Context, projectDir, specContent, testOutput, evalM
 	prompt := BuildEvalPrompt(specContent, testOutput, files)
 
 	// Build command — prompt via stdin to avoid OS arg length limits
-	cmdArgs := []string{"-p", "--output-format", "text"}
+	cmdArgs := []string{"-p", "--permission-mode", "bypassPermissions", "--output-format", "text"}
 	if evalModel != "" {
 		cmdArgs = append(cmdArgs, "--model", evalModel)
 	}
