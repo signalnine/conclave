@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What This Is
 
-Conclave is a Claude Code plugin that provides structured development methodologies through composable "skills" — TDD, design brainstorming, verification, and code review. Skills activate automatically based on task type and guide the agent through disciplined workflows that improve code quality by 10-12 points over unguided development. Optionally includes multi-agent consensus for higher-stakes decisions (requires API keys for Gemini and/or Codex in addition to Claude). Forked from [obra/superpowers](https://github.com/obra/superpowers).
+Conclave is a Claude Code plugin that provides structured development methodologies through composable "skills" — TDD, design brainstorming, verification, and code review. Skills activate automatically based on task type and guide the agent through disciplined workflows that improve code quality by 10-12 points over unguided development. Optionally includes multi-agent consensus for higher-stakes decisions (requires API keys for GLM (Z.ai) and/or Codex (OpenAI) in addition to Claude). Forked from [obra/superpowers](https://github.com/obra/superpowers).
 
 ## Running Tests
 
@@ -73,7 +73,7 @@ Contains `code-reviewer.md` - a specialized agent definition used by the `superp
 ### Multi-Agent Consensus (`skills/multi-agent-consensus/`)
 
 The core consensus engine:
-- **`consensus-synthesis.sh`** - Two-stage bash script: Stage 1 runs Claude/Gemini/Codex in parallel via direct API calls (curl + jq), Stage 2 has a chairman agent synthesize findings. Requires `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `OPENAI_API_KEY` (at least 1 of 3). Sources `~/.env` automatically.
+- **`consensus-synthesis.sh`** - Two-stage bash script: Stage 1 runs Claude/GLM/Codex in parallel via direct API calls (curl + jq), Stage 2 has a chairman agent synthesize findings. Requires `ANTHROPIC_API_KEY`, `ZHIPU_API_KEY` (Z.ai GLM), `OPENAI_API_KEY` (at least 1 of 3). Sources `~/.env` automatically.
 - **`auto-review.sh`** - Convenience wrapper that auto-detects git SHAs for code review mode
 - Two modes: `--mode=code-review` (reviews git diffs) and `--mode=general-prompt` (analyzes questions)
 
@@ -132,8 +132,9 @@ ANTHROPIC_BASE_URL=http://localhost:8199 claude
 
 Benchmark data (7,500+ trials, 125 orchestrators) validated the v10 methodology (Contract -> TDD -> Boil the Lake -> Verify) at 90.2% when Haiku routes hard tasks to Opus and easy tasks to Sonnet.
 
-- **Default:** Sonnet 4.6 -- best cost-efficiency for most tasks ($0.82/task, 88.6%)
-- **Hard tasks:** Opus 4.6 -- complex state management, algorithmic reasoning, ambiguous specs
+- **Default:** Sonnet 5 -- best cost-efficiency for most tasks (benchmarked on Sonnet 4.6: $0.82/task, 88.6%)
+- **Hard tasks:** Opus 5 -- complex state management, algorithmic reasoning, ambiguous specs
+- **Consensus/review defaults:** `claude-opus-5`, `glm-5.3-flash`, `gpt-5.6-sol` (override with `ANTHROPIC_MODEL`, `GLM_MODEL`, `OPENAI_MODEL`; OpenRouter fallbacks via `OPENROUTER_*_MODEL`)
 - **Routing:** `conclave route "task summary"` classifies HARD/EASY via Haiku
 
 ## Key Conventions

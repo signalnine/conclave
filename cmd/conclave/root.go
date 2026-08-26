@@ -10,7 +10,7 @@ import (
 var rootCmd = &cobra.Command{
 	Use:   "conclave",
 	Short: "Multi-agent consensus development system",
-	Long:  "Conclave orchestrates a council of AI reviewers (Claude, Gemini, Codex) for consensus-based development.",
+	Long:  "Conclave orchestrates a council of AI reviewers (Claude, GLM, Codex) for consensus-based development.",
 }
 
 func Execute() {

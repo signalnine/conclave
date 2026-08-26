@@ -11,7 +11,7 @@ if [[ -f ~/.env ]]; then
     # shellcheck disable=SC1090
     source ~/.env 2>/dev/null || true
     set -u
-    export ANTHROPIC_API_KEY GEMINI_API_KEY GOOGLE_API_KEY OPENAI_API_KEY
+    export ANTHROPIC_API_KEY ZHIPU_API_KEY ZAI_API_KEY GLM_API_KEY OPENAI_API_KEY
 fi
 
 echo "Testing consensus-synthesis.sh..."
@@ -345,8 +345,8 @@ fi
 
 # Test 20: Partial success - 1/3 agents succeed
 echo -n "Test 20: Partial success with 1/3 agents... "
-# Unset Gemini and OpenAI keys so only Claude succeeds
-output=$(env -u GEMINI_API_KEY -u GOOGLE_API_KEY -u OPENAI_API_KEY HOME=/tmp \
+# Unset GLM and OpenAI keys so only Claude succeeds
+output=$(env -u ZHIPU_API_KEY -u ZAI_API_KEY -u GLM_API_KEY -u OPENAI_API_KEY HOME=/tmp \
     bash "$SCRIPT" --mode=general-prompt --prompt="test" 2>&1)
 exit_code=$?
 
@@ -364,7 +364,7 @@ fi
 
 # Test 21: Partial success - 2/3 agents succeed
 echo -n "Test 21: Partial success with 2/3 agents... "
-# Unset OpenAI key so Claude + Gemini succeed, Codex fails
+# Unset OpenAI key so Claude + GLM succeed, Codex fails
 output=$(env -u OPENAI_API_KEY HOME=/tmp \
     bash "$SCRIPT" --mode=general-prompt --prompt="test" 2>&1)
 exit_code=$?
@@ -498,7 +498,7 @@ fi
 # Test 27: Chairman fallback (conceptual verification)
 echo -n "Test 27: Chairman fallback logic exists... "
 # Verify the fallback chain is implemented in the script
-if grep -q "chairman_agents=.*Claude.*Gemini.*Codex" "$SCRIPT" && \
+if grep -q "chairman_agents=.*Claude.*GLM.*Codex" "$SCRIPT" && \
    grep -q "for agent in.*chairman_agents" "$SCRIPT"; then
     echo "PASS"
 else
@@ -576,7 +576,7 @@ STUB_PREAMBLE='run_claude() {
     echo "mock analysis" > "$2"
     return 0
 }
-run_gemini() {
+run_glm() {
     echo "mock analysis" > "$2"
     return 0
 }

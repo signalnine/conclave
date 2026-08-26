@@ -31,7 +31,7 @@ func NewClaudeAgent(cfg *config.Config) *ClaudeAgent {
 	return &ClaudeAgent{cfg: cfg}
 }
 
-func (a *ClaudeAgent) Name() string   { return "Claude" }
+func (a *ClaudeAgent) Name() string    { return "Claude" }
 func (a *ClaudeAgent) Available() bool { return a.cfg.AnthropicAPIKey != "" }
 
 func (a *ClaudeAgent) Run(ctx context.Context, prompt string) (string, error) {
@@ -58,7 +58,7 @@ func (a *ClaudeAgent) Run(ctx context.Context, prompt string) (string, error) {
 	defer resp.Body.Close()
 
 	var result struct {
-		Content []struct{ Text string } `json:"content"`
+		Content []struct{ Text string }   `json:"content"`
 		Error   *struct{ Message string } `json:"error"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
@@ -73,33 +73,41 @@ func (a *ClaudeAgent) Run(ctx context.Context, prompt string) (string, error) {
 	return result.Content[0].Text, nil
 }
 
-// --- Gemini ---
+// --- GLM (Z.ai, OpenAI-compatible chat completions) ---
 
-type GeminiAgent struct {
+type GLMAgent struct {
 	cfg *config.Config
 }
 
-func NewGeminiAgent(cfg *config.Config) *GeminiAgent {
-	return &GeminiAgent{cfg: cfg}
+func NewGLMAgent(cfg *config.Config) *GLMAgent {
+	return &GLMAgent{cfg: cfg}
 }
 
-func (a *GeminiAgent) Name() string   { return "Gemini" }
-func (a *GeminiAgent) Available() bool { return a.cfg.GeminiAPIKey != "" }
+func (a *GLMAgent) Name() string    { return "GLM" }
+func (a *GLMAgent) Available() bool { return a.cfg.GLMAPIKey != "" }
 
-func (a *GeminiAgent) Run(ctx context.Context, prompt string) (string, error) {
+func (a *GLMAgent) Run(ctx context.Context, prompt string) (string, error) {
+	// Thinking is always on for glm-5.3-flash and cannot be disabled;
+	// max_tokens has to leave room for it. reasoning_content is ignored.
 	body := map[string]any{
-		"contents": []map[string]any{
-			{"parts": []map[string]any{{"text": prompt}}},
-		},
+		"model":      a.cfg.GLMModel,
+		"max_tokens": a.cfg.GLMMaxTokens,
+		"messages":   []map[string]any{{"role": "user", "content": prompt}},
 	}
-	data, _ := json.Marshal(body)
+	url := strings.TrimRight(a.cfg.GLMBaseURL, "/") + "/chat/completions"
+	return postChatCompletions(ctx, url, a.cfg.GLMAPIKey, body)
+}
 
-	url := fmt.Sprintf("%s/v1beta/models/%s:generateContent?key=%s",
-		strings.TrimRight(a.cfg.GeminiBaseURL, "/"), a.cfg.GeminiModel, a.cfg.GeminiAPIKey)
+// postChatCompletions sends an OpenAI-style chat completion request with a
+// Bearer token and returns choices[0].message.content. Shared by every
+// OpenAI-compatible endpoint (Z.ai, OpenRouter).
+func postChatCompletions(ctx context.Context, url, apiKey string, body map[string]any) (string, error) {
+	data, _ := json.Marshal(body)
 	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(data))
 	if err != nil {
 		return "", err
 	}
+	req.Header.Set("Authorization", "Bearer "+apiKey)
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := http.DefaultClient.Do(req)
@@ -109,11 +117,9 @@ func (a *GeminiAgent) Run(ctx context.Context, prompt string) (string, error) {
 	defer resp.Body.Close()
 
 	var result struct {
-		Candidates []struct {
-			Content struct {
-				Parts []struct{ Text string } `json:"parts"`
-			} `json:"content"`
-		} `json:"candidates"`
+		Choices []struct {
+			Message struct{ Content string } `json:"message"`
+		} `json:"choices"`
 		Error *struct{ Message string } `json:"error"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
@@ -122,10 +128,10 @@ func (a *GeminiAgent) Run(ctx context.Context, prompt string) (string, error) {
 	if result.Error != nil {
 		return "", fmt.Errorf("API error: %s", result.Error.Message)
 	}
-	if len(result.Candidates) == 0 || len(result.Candidates[0].Content.Parts) == 0 {
+	if len(result.Choices) == 0 || result.Choices[0].Message.Content == "" {
 		return "", fmt.Errorf("empty response")
 	}
-	return result.Candidates[0].Content.Parts[0].Text, nil
+	return result.Choices[0].Message.Content, nil
 }
 
 // --- Codex (OpenAI) ---
@@ -138,7 +144,7 @@ func NewCodexAgent(cfg *config.Config) *CodexAgent {
 	return &CodexAgent{cfg: cfg}
 }
 
-func (a *CodexAgent) Name() string   { return "Codex" }
+func (a *CodexAgent) Name() string    { return "Codex" }
 func (a *CodexAgent) Available() bool { return a.cfg.OpenAIAPIKey != "" }
 
 var codexModelRe = regexp.MustCompile(`^gpt-5.*-codex`)
@@ -207,7 +213,7 @@ func NewOpenRouterAgent(cfg *config.Config, model, label string) *OpenRouterAgen
 	return &OpenRouterAgent{cfg: cfg, model: model, label: label}
 }
 
-func (a *OpenRouterAgent) Name() string   { return a.label + " (OpenRouter)" }
+func (a *OpenRouterAgent) Name() string    { return a.label + " (OpenRouter)" }
 func (a *OpenRouterAgent) Available() bool { return a.cfg.OpenRouterAPIKey != "" && a.model != "" }
 
 func (a *OpenRouterAgent) Run(ctx context.Context, prompt string) (string, error) {
@@ -215,38 +221,8 @@ func (a *OpenRouterAgent) Run(ctx context.Context, prompt string) (string, error
 		"model":    a.model,
 		"messages": []map[string]any{{"role": "user", "content": prompt}},
 	}
-	data, _ := json.Marshal(body)
-
 	url := strings.TrimRight(a.cfg.OpenRouterBaseURL, "/") + "/v1/chat/completions"
-	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(data))
-	if err != nil {
-		return "", err
-	}
-	req.Header.Set("Authorization", "Bearer "+a.cfg.OpenRouterAPIKey)
-	req.Header.Set("Content-Type", "application/json")
-
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return "", err
-	}
-	defer resp.Body.Close()
-
-	var result struct {
-		Choices []struct {
-			Message struct{ Content string } `json:"message"`
-		} `json:"choices"`
-		Error *struct{ Message string } `json:"error"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return "", fmt.Errorf("decode: %w", err)
-	}
-	if result.Error != nil {
-		return "", fmt.Errorf("API error: %s", result.Error.Message)
-	}
-	if len(result.Choices) == 0 || result.Choices[0].Message.Content == "" {
-		return "", fmt.Errorf("empty response")
-	}
-	return result.Choices[0].Message.Content, nil
+	return postChatCompletions(ctx, url, a.cfg.OpenRouterAPIKey, body)
 }
 
 // --- FallbackAgent (tries primary, falls back to secondary on failure) ---
@@ -284,7 +260,7 @@ func (a *CodexAgent) extractResponse(body []byte) (string, error) {
 	if codexModelRe.MatchString(a.cfg.OpenAIModel) {
 		var result struct {
 			Output []struct {
-				Type    string `json:"type"`
+				Type    string                  `json:"type"`
 				Content []struct{ Text string } `json:"content"`
 			} `json:"output"`
 		}

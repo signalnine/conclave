@@ -18,7 +18,7 @@ func TestBuildThesisSummaryPrompt(t *testing.T) {
 func TestBuildDebatePrompt(t *testing.T) {
 	theses := map[string]string{
 		"Claude": "The code has SQL injection vulnerabilities.",
-		"Gemini": "The code is secure but has performance issues.",
+		"GLM": "The code is secure but has performance issues.",
 		"Codex":  "Both security and performance need attention.",
 	}
 	prompt := BuildDebatePrompt(theses, "claude")
@@ -26,8 +26,8 @@ func TestBuildDebatePrompt(t *testing.T) {
 	if !strings.Contains(prompt, "Claude") {
 		t.Error("should include Claude's thesis")
 	}
-	if !strings.Contains(prompt, "Gemini") {
-		t.Error("should include Gemini's thesis")
+	if !strings.Contains(prompt, "GLM") {
+		t.Error("should include GLM's thesis")
 	}
 	if !strings.Contains(prompt, "disagreement") || !strings.Contains(prompt, "error") {
 		t.Error("should instruct agent to find disagreements and errors")
@@ -37,11 +37,11 @@ func TestBuildDebatePrompt(t *testing.T) {
 func TestBuildDebateChairmanPrompt(t *testing.T) {
 	results := []AgentResult{
 		{Agent: "Claude", Output: "Original Claude analysis"},
-		{Agent: "Gemini", Output: "Original Gemini analysis"},
+		{Agent: "GLM", Output: "Original GLM analysis"},
 	}
 	rebuttals := []AgentResult{
-		{Agent: "Claude", Output: "Claude's rebuttal of Gemini"},
-		{Agent: "Gemini", Output: "Gemini's rebuttal of Claude"},
+		{Agent: "Claude", Output: "Claude's rebuttal of GLM"},
+		{Agent: "GLM", Output: "GLM's rebuttal of Claude"},
 	}
 
 	prompt := BuildDebateChairmanPrompt("Review this code", results, rebuttals)

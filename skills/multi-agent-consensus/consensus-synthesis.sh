@@ -3,14 +3,14 @@ set -euo pipefail
 
 # consensus-synthesis.sh
 # Two-stage consensus synthesis for multi-agent analysis
-# Stage 1: Parallel independent analysis from Claude, Gemini, Codex
+# Stage 1: Parallel independent analysis from Claude, GLM, Codex
 # Stage 2: Chairman synthesizes consensus from all responses
 #
 # SETUP REQUIREMENTS:
 # - curl: HTTP client for API calls
 # - jq: JSON processor for parsing API responses
 # - ANTHROPIC_API_KEY: Environment variable with Anthropic API key
-# - GEMINI_API_KEY: Environment variable with Google Gemini API key
+# - ZHIPU_API_KEY (or ZAI_API_KEY / GLM_API_KEY): Environment variable with Z.ai GLM API key
 # - OPENAI_API_KEY: Environment variable with OpenAI API key (for Codex)
 
 #############################################
@@ -19,7 +19,7 @@ set -euo pipefail
 
 # Source ~/.env if it exists and API keys are missing
 if [[ -f ~/.env ]]; then
-    if [[ -z "${ANTHROPIC_API_KEY:-}" ]] || [[ -z "${GEMINI_API_KEY:-}" ]] || [[ -z "${GOOGLE_API_KEY:-}" ]] || [[ -z "${OPENAI_API_KEY:-}" ]]; then
+    if [[ -z "${ANTHROPIC_API_KEY:-}" ]] || [[ -z "${ZHIPU_API_KEY:-${ZAI_API_KEY:-${GLM_API_KEY:-}}}" ]] || [[ -z "${OPENAI_API_KEY:-}" ]]; then
         set +u  # Temporarily allow unset variables
         # shellcheck disable=SC1090
         source ~/.env 2>/dev/null || true
@@ -60,14 +60,14 @@ COMMON OPTIONS:
 ENVIRONMENT VARIABLES:
   Required for agent access (at least one):
     ANTHROPIC_API_KEY         API key for Claude agent
-    GEMINI_API_KEY            API key for Gemini agent
+    ZHIPU_API_KEY             API key for GLM agent (ZAI_API_KEY / GLM_API_KEY also accepted)
     OPENAI_API_KEY            API key for OpenAI Codex agent
 
   Optional configuration:
-    ANTHROPIC_MODEL           Claude model (default: claude-opus-4-6)
+    ANTHROPIC_MODEL           Claude model (default: claude-opus-5)
     ANTHROPIC_MAX_TOKENS      Max tokens for Claude (default: 16000)
-    GEMINI_MODEL              Gemini model (default: gemini-3-pro-preview)
-    OPENAI_MODEL              OpenAI model (default: gpt-5.1-codex-max)
+    GLM_MODEL                 GLM model (default: glm-5.3-flash)
+    OPENAI_MODEL              OpenAI model (default: gpt-5.6-sol)
     OPENAI_MAX_TOKENS         Max tokens for OpenAI (default: 16000)
     CONSENSUS_STAGE1_TIMEOUT  Stage 1 timeout in seconds (default: 60)
     CONSENSUS_STAGE2_TIMEOUT  Stage 2 timeout in seconds (default: 60)
@@ -385,7 +385,7 @@ run_claude() {
     fi
 
     # Prepare the API request
-    local model="${ANTHROPIC_MODEL:-claude-opus-4-6}"
+    local model="${ANTHROPIC_MODEL:-claude-opus-5}"
     local max_tokens="${ANTHROPIC_MAX_TOKENS:-16000}"
 
     # Escape the prompt for JSON
@@ -448,44 +448,50 @@ EOF
     return 0
 }
 
-# Run Gemini agent
-run_gemini() {
+# Run GLM agent (Z.ai, OpenAI-compatible chat completions)
+run_glm() {
     local prompt="$1"
     local output_file="$2"
 
-    # Check if API key is available (try both GEMINI_API_KEY and GOOGLE_API_KEY)
-    local api_key="${GEMINI_API_KEY:-${GOOGLE_API_KEY:-}}"
+    # Check if API key is available (ZHIPU_API_KEY, ZAI_API_KEY, or GLM_API_KEY)
+    local api_key="${ZHIPU_API_KEY:-${ZAI_API_KEY:-${GLM_API_KEY:-}}}"
     if [[ -z "$api_key" ]]; then
-        echo "GEMINI_API_KEY_MISSING" > "$output_file"
+        echo "GLM_API_KEY_MISSING" > "$output_file"
         return 1
     fi
 
     # Check if curl is available
     if ! command -v curl &> /dev/null; then
-        echo "GEMINI_CURL_NOT_AVAILABLE" > "$output_file"
+        echo "GLM_CURL_NOT_AVAILABLE" > "$output_file"
         return 1
     fi
 
     # Check if jq is available
     if ! command -v jq &> /dev/null; then
-        echo "GEMINI_JQ_NOT_AVAILABLE" > "$output_file"
+        echo "GLM_JQ_NOT_AVAILABLE" > "$output_file"
         return 1
     fi
 
     # Prepare the API request
-    local model="${GEMINI_MODEL:-gemini-3-pro-preview}"
+    local model="${GLM_MODEL:-glm-5.3-flash}"
+    local max_tokens="${GLM_MAX_TOKENS:-16000}"
+    local base_url="${GLM_BASE_URL:-https://api.z.ai/api/paas/v4}"
 
     # Escape the prompt for JSON
     local escaped_prompt=$(echo "$prompt" | jq -Rs .)
 
-    # Build JSON payload
+    # Build JSON payload. Thinking is always on for glm-5.3-flash; max_tokens
+    # must leave room for it.
     local json_payload=$(cat <<EOF
 {
-  "contents": [{
-    "parts": [{
-      "text": $escaped_prompt
-    }]
-  }]
+  "model": "$model",
+  "max_tokens": $max_tokens,
+  "messages": [
+    {
+      "role": "user",
+      "content": $escaped_prompt
+    }
+  ]
 }
 EOF
 )
@@ -493,7 +499,8 @@ EOF
     # Make API call with timeout
     local response
     response=$(curl -s --max-time 50 \
-        -X POST "https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${api_key}" \
+        -X POST "${base_url%/}/chat/completions" \
+        -H "Authorization: Bearer $api_key" \
         -H "Content-Type: application/json" \
         -d "$json_payload" 2>&1)
 
@@ -501,20 +508,20 @@ EOF
 
     # Check for curl errors
     if [[ $curl_exit -ne 0 ]]; then
-        echo "GEMINI_CURL_ERROR: Exit code $curl_exit" > "$output_file"
+        echo "GLM_CURL_ERROR: Exit code $curl_exit" > "$output_file"
         return 1
     fi
 
-    # Extract content from response
+    # Extract the answer (reasoning_content is intentionally ignored)
     local content
-    content=$(echo "$response" | jq -r '.candidates[0].content.parts[0].text // empty' 2>/dev/null)
+    content=$(echo "$response" | jq -r '.choices[0].message.content // empty' 2>/dev/null)
 
     # Check if we got valid content
     if [[ -z "$content" ]]; then
         # Check for API error
         local error_msg
         error_msg=$(echo "$response" | jq -r '.error.message // "Unknown error"' 2>/dev/null)
-        echo "GEMINI_API_ERROR: $error_msg" > "$output_file"
+        echo "GLM_API_ERROR: $error_msg" > "$output_file"
         return 1
     fi
 
@@ -547,8 +554,9 @@ run_codex() {
     fi
 
     # Prepare the API request
-    # Note: gpt-5.1-codex-max uses the Responses API endpoint (for agentic coding tasks)
-    local model="${OPENAI_MODEL:-gpt-5.1-codex-max}"
+    # Note: *-codex models use the Responses API; other GPT-5/o-series models use
+    # chat completions with max_completion_tokens (they reject max_tokens).
+    local model="${OPENAI_MODEL:-gpt-5.6-sol}"
     local max_tokens="${OPENAI_MAX_TOKENS:-16000}"
 
     # Escape the prompt for JSON
@@ -576,13 +584,17 @@ run_codex() {
 }
 EOF
 )
-    elif [[ "$model" =~ ^(gpt-4|gpt-3.5-turbo|o1|o3) ]]; then
+    elif [[ "$model" =~ ^(gpt-[345]|o1|o3|o4) ]]; then
         # Use chat completions endpoint
         endpoint="https://api.openai.com/v1/chat/completions"
+        local token_key="max_tokens"
+        if [[ "$model" =~ ^(gpt-5|o1|o3|o4) ]]; then
+            token_key="max_completion_tokens"
+        fi
         json_payload=$(cat <<EOF
 {
   "model": "$model",
-  "max_tokens": $max_tokens,
+  "$token_key": $max_tokens,
   "messages": [
     {
       "role": "user",
@@ -626,7 +638,7 @@ EOF
     if [[ "$is_responses_api" == "true" ]]; then
         # Responses API format: output[].content[].text
         content=$(echo "$response" | jq -r '.output[] | select(.type == "message") | .content[0].text // empty' 2>/dev/null)
-    elif [[ "$model" =~ ^(gpt-4|gpt-3.5-turbo|o1|o3) ]]; then
+    elif [[ "$model" =~ ^(gpt-[345]|o1|o3|o4) ]]; then
         # Chat completions format
         content=$(echo "$response" | jq -r '.choices[0].message.content // empty' 2>/dev/null)
     else
@@ -659,12 +671,12 @@ execute_stage1() {
 
     # Create temp files for agent outputs
     local claude_output=$(mktemp)
-    local gemini_output=$(mktemp)
+    local glm_output=$(mktemp)
     local codex_output=$(mktemp)
 
     # Track PIDs for background processes
     local claude_pid=""
-    local gemini_pid=""
+    local glm_pid=""
     local codex_pid=""
 
     # Launch agents in parallel (background)
@@ -672,8 +684,8 @@ execute_stage1() {
     ( run_claude "$prompt" "$claude_output" ) &
     claude_pid=$!
 
-    ( run_gemini "$prompt" "$gemini_output" ) &
-    gemini_pid=$!
+    ( run_glm "$prompt" "$glm_output" ) &
+    glm_pid=$!
 
     ( run_codex "$prompt" "$codex_output" ) &
     codex_pid=$!
@@ -685,10 +697,10 @@ execute_stage1() {
     local start_time=$(date +%s)
     local stage1_start_ns=$(date +%s.%N)
     local claude_exit=1
-    local gemini_exit=1
+    local glm_exit=1
     local codex_exit=1
     local claude_done=false
-    local gemini_done=false
+    local glm_done=false
     local codex_done=false
 
     # Poll for completion with timeout
@@ -701,11 +713,11 @@ execute_stage1() {
             echo "  Timeout reached (${timeout_duration}s)" >&2
             # Kill any remaining processes (use SIGKILL to ensure termination)
             kill -9 $claude_pid 2>/dev/null || true
-            kill -9 $gemini_pid 2>/dev/null || true
+            kill -9 $glm_pid 2>/dev/null || true
             kill -9 $codex_pid 2>/dev/null || true
             # Also kill any child processes
             pkill -9 -P $claude_pid 2>/dev/null || true
-            pkill -9 -P $gemini_pid 2>/dev/null || true
+            pkill -9 -P $glm_pid 2>/dev/null || true
             pkill -9 -P $codex_pid 2>/dev/null || true
             break
         fi
@@ -717,11 +729,11 @@ execute_stage1() {
             claude_done=true
         fi
 
-        # Check Gemini
-        if [[ "$gemini_done" == false ]] && ! kill -0 $gemini_pid 2>/dev/null; then
-            wait $gemini_pid 2>/dev/null || true
-            gemini_exit=$?
-            gemini_done=true
+        # Check GLM
+        if [[ "$glm_done" == false ]] && ! kill -0 $glm_pid 2>/dev/null; then
+            wait $glm_pid 2>/dev/null || true
+            glm_exit=$?
+            glm_done=true
         fi
 
         # Check Codex
@@ -732,7 +744,7 @@ execute_stage1() {
         fi
 
         # If all done, break early
-        if [[ "$claude_done" == true ]] && [[ "$gemini_done" == true ]] && [[ "$codex_done" == true ]]; then
+        if [[ "$claude_done" == true ]] && [[ "$glm_done" == true ]] && [[ "$codex_done" == true ]]; then
             break
         fi
 
@@ -742,13 +754,13 @@ execute_stage1() {
 
     # Read agent responses
     local claude_response=$(cat "$claude_output" 2>/dev/null || echo "")
-    local gemini_response=$(cat "$gemini_output" 2>/dev/null || echo "")
+    local glm_response=$(cat "$glm_output" 2>/dev/null || echo "")
     local codex_response=$(cat "$codex_output" 2>/dev/null || echo "")
 
     # Track success/failure
     local agents_succeeded=0
     local claude_status="failed"
-    local gemini_status="failed"
+    local glm_status="failed"
     local codex_status="failed"
 
     # Check Claude status (reject error markers)
@@ -766,18 +778,18 @@ execute_stage1() {
         fi
     fi
 
-    # Check Gemini status (reject error markers)
-    if [[ $gemini_exit -eq 0 ]] && [[ -n "$gemini_response" ]] && ! echo "$gemini_response" | grep -qE "^GEMINI_(API_KEY_MISSING|CURL_ERROR|JQ_NOT_AVAILABLE|CURL_NOT_AVAILABLE|API_ERROR)"; then
-        gemini_status="success"
+    # Check GLM status (reject error markers)
+    if [[ $glm_exit -eq 0 ]] && [[ -n "$glm_response" ]] && ! echo "$glm_response" | grep -qE "^GLM_(API_KEY_MISSING|CURL_ERROR|JQ_NOT_AVAILABLE|CURL_NOT_AVAILABLE|API_ERROR)"; then
+        glm_status="success"
         agents_succeeded=$((agents_succeeded + 1))
-        echo "  Gemini: SUCCESS" >&2
+        echo "  GLM: SUCCESS" >&2
     else
-        if echo "$gemini_response" | grep -q "GEMINI_API_KEY_MISSING"; then
-            echo "  Gemini: API KEY MISSING" >&2
-        elif echo "$gemini_response" | grep -q "GEMINI_API_ERROR"; then
-            echo "  Gemini: API ERROR" >&2
+        if echo "$glm_response" | grep -q "GLM_API_KEY_MISSING"; then
+            echo "  GLM: API KEY MISSING" >&2
+        elif echo "$glm_response" | grep -q "GLM_API_ERROR"; then
+            echo "  GLM: API ERROR" >&2
         else
-            echo "  Gemini: FAILED" >&2
+            echo "  GLM: FAILED" >&2
         fi
     fi
 
@@ -801,7 +813,7 @@ execute_stage1() {
     echo "  Agents completed: $agents_succeeded/3 succeeded" >&2
 
     # Cleanup temp files
-    rm -f "$claude_output" "$gemini_output" "$codex_output"
+    rm -f "$claude_output" "$glm_output" "$codex_output"
 
     # Check if at least one agent succeeded
     if [[ $agents_succeeded -eq 0 ]]; then
@@ -811,10 +823,10 @@ execute_stage1() {
 
     # Export results for Stage 2 (stored in global variables for now)
     STAGE1_CLAUDE_RESPONSE="$claude_response"
-    STAGE1_GEMINI_RESPONSE="$gemini_response"
+    STAGE1_GLM_RESPONSE="$glm_response"
     STAGE1_CODEX_RESPONSE="$codex_response"
     STAGE1_CLAUDE_STATUS="$claude_status"
-    STAGE1_GEMINI_STATUS="$gemini_status"
+    STAGE1_GLM_STATUS="$glm_status"
     STAGE1_CODEX_STATUS="$codex_status"
     STAGE1_AGENTS_SUCCEEDED=$agents_succeeded
 
@@ -834,10 +846,10 @@ build_code_review_chairman_prompt() {
     local description="$1"
     local modified_files="$2"
     local claude_response="$3"
-    local gemini_response="$4"
+    local glm_response="$4"
     local codex_response="$5"
     local claude_status="$6"
-    local gemini_status="$7"
+    local glm_status="$7"
     local codex_status="$8"
     local agents_succeeded="$9"
 
@@ -863,9 +875,9 @@ $claude_response
 "
     fi
 
-    if [[ "$gemini_status" == "success" ]]; then
-        prompt+="--- Gemini Review ---
-$gemini_response
+    if [[ "$glm_status" == "success" ]]; then
+        prompt+="--- GLM Review ---
+$glm_response
 
 "
     fi
@@ -912,10 +924,10 @@ Be direct. Group similar issues but preserve different perspectives.
 build_general_chairman_prompt() {
     local original_prompt="$1"
     local claude_response="$2"
-    local gemini_response="$3"
+    local glm_response="$3"
     local codex_response="$4"
     local claude_status="$5"
-    local gemini_status="$6"
+    local glm_status="$6"
     local codex_status="$7"
     local agents_succeeded="$8"
 
@@ -939,9 +951,9 @@ $claude_response
 "
     fi
 
-    if [[ "$gemini_status" == "success" ]]; then
-        prompt+="--- Gemini Analysis ---
-$gemini_response
+    if [[ "$glm_status" == "success" ]]; then
+        prompt+="--- GLM Analysis ---
+$glm_response
 
 "
     fi
@@ -987,8 +999,8 @@ run_chairman_agent() {
             run_claude "$prompt" "$output_file"
             return $?
             ;;
-        "Gemini")
-            run_gemini "$prompt" "$output_file"
+        "GLM")
+            run_glm "$prompt" "$output_file"
             return $?
             ;;
         "Codex")
@@ -1012,8 +1024,8 @@ execute_stage2() {
     # Create temp file for chairman output
     local chairman_output=$(mktemp)
 
-    # Try chairman agents in order: Claude → Gemini → Codex
-    local chairman_agents=("Claude" "Gemini" "Codex")
+    # Try chairman agents in order: Claude → GLM → Codex
+    local chairman_agents=("Claude" "GLM" "Codex")
     local chairman_succeeded=false
     local chairman_name=""
     local chairman_response=""
@@ -1065,7 +1077,7 @@ execute_stage2() {
 
             # Validate response is not empty and not an error message
             if [[ -n "$chairman_response" ]] && \
-               ! echo "$chairman_response" | grep -q "GEMINI_NOT_AVAILABLE\|GEMINI_TIMEOUT\|CODEX_MCP_REQUIRED"; then
+               ! echo "$chairman_response" | grep -q "GLM_NOT_AVAILABLE\|GLM_TIMEOUT\|CODEX_MCP_REQUIRED"; then
                 chairman_succeeded=true
                 chairman_name="$agent"
                 echo "  $agent: SUCCESS" >&2
@@ -1138,20 +1150,20 @@ if [[ "$MODE" == "code-review" ]]; then
         "$DESCRIPTION" \
         "$MODIFIED_FILES" \
         "$STAGE1_CLAUDE_RESPONSE" \
-        "$STAGE1_GEMINI_RESPONSE" \
+        "$STAGE1_GLM_RESPONSE" \
         "$STAGE1_CODEX_RESPONSE" \
         "$STAGE1_CLAUDE_STATUS" \
-        "$STAGE1_GEMINI_STATUS" \
+        "$STAGE1_GLM_STATUS" \
         "$STAGE1_CODEX_STATUS" \
         "$STAGE1_AGENTS_SUCCEEDED")
 elif [[ "$MODE" == "general-prompt" ]]; then
     STAGE2_PROMPT=$(build_general_chairman_prompt \
         "$PROMPT" \
         "$STAGE1_CLAUDE_RESPONSE" \
-        "$STAGE1_GEMINI_RESPONSE" \
+        "$STAGE1_GLM_RESPONSE" \
         "$STAGE1_CODEX_RESPONSE" \
         "$STAGE1_CLAUDE_STATUS" \
-        "$STAGE1_GEMINI_STATUS" \
+        "$STAGE1_GLM_STATUS" \
         "$STAGE1_CODEX_STATUS" \
         "$STAGE1_AGENTS_SUCCEEDED")
 fi
@@ -1237,11 +1249,11 @@ $STAGE1_CLAUDE_RESPONSE
 EOF
 fi
 
-if [[ "$STAGE1_GEMINI_STATUS" == "success" ]]; then
+if [[ "$STAGE1_GLM_STATUS" == "success" ]]; then
     cat >> "$OUTPUT_FILE" <<EOF
-### Gemini Review
+### GLM Review
 
-$STAGE1_GEMINI_RESPONSE
+$STAGE1_GLM_RESPONSE
 
 ---
 

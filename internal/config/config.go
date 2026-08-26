@@ -11,13 +11,14 @@ import (
 type Config struct {
 	// API Keys
 	AnthropicAPIKey string
-	GeminiAPIKey    string
+	GLMAPIKey       string
 	OpenAIAPIKey    string
 
 	// Model config
 	AnthropicModel     string
 	AnthropicMaxTokens int
-	GeminiModel        string
+	GLMModel           string
+	GLMMaxTokens       int
 	OpenAIModel        string
 	OpenAIMaxTokens    int
 
@@ -26,15 +27,15 @@ type Config struct {
 	Stage2Timeout int
 
 	// OpenRouter (fallback)
-	OpenRouterAPIKey     string
-	OpenRouterBaseURL    string
+	OpenRouterAPIKey      string
+	OpenRouterBaseURL     string
 	OpenRouterClaudeModel string
-	OpenRouterGeminiModel string
+	OpenRouterGLMModel    string
 	OpenRouterCodexModel  string
 
 	// Base URLs (for testing - override API endpoints)
 	AnthropicBaseURL string
-	GeminiBaseURL    string
+	GLMBaseURL       string
 	OpenAIBaseURL    string
 
 	// Parallel runner
@@ -59,26 +60,27 @@ func Load() *Config {
 
 	return &Config{
 		AnthropicAPIKey: os.Getenv("ANTHROPIC_API_KEY"),
-		GeminiAPIKey:    coalesce(os.Getenv("GEMINI_API_KEY"), os.Getenv("GOOGLE_API_KEY")),
+		GLMAPIKey:       coalesce(os.Getenv("ZHIPU_API_KEY"), coalesce(os.Getenv("ZAI_API_KEY"), os.Getenv("GLM_API_KEY"))),
 		OpenAIAPIKey:    os.Getenv("OPENAI_API_KEY"),
 
-		AnthropicModel:     envOr("ANTHROPIC_MODEL", "claude-opus-4-6"),
+		AnthropicModel:     envOr("ANTHROPIC_MODEL", "claude-opus-5"),
 		AnthropicMaxTokens: envInt("ANTHROPIC_MAX_TOKENS", 16000),
-		GeminiModel:        envOr("GEMINI_MODEL", "gemini-3.1-pro-preview"),
-		OpenAIModel:        envOr("OPENAI_MODEL", "gpt-5.4"),
+		GLMModel:           envOr("GLM_MODEL", "glm-5.3-flash"),
+		GLMMaxTokens:       envInt("GLM_MAX_TOKENS", 16000),
+		OpenAIModel:        envOr("OPENAI_MODEL", "gpt-5.6-sol"),
 		OpenAIMaxTokens:    envInt("OPENAI_MAX_TOKENS", 16000),
 
 		Stage1Timeout: envInt("CONSENSUS_STAGE1_TIMEOUT", 60),
 		Stage2Timeout: envInt("CONSENSUS_STAGE2_TIMEOUT", 60),
 
 		OpenRouterAPIKey:      os.Getenv("OPENROUTER_API_KEY"),
-		OpenRouterBaseURL:    envOr("OPENROUTER_BASE_URL", "https://openrouter.ai/api"),
-		OpenRouterClaudeModel: envOr("OPENROUTER_CLAUDE_MODEL", "anthropic/claude-opus-4.6"),
-		OpenRouterGeminiModel: envOr("OPENROUTER_GEMINI_MODEL", "google/gemini-3.1-pro-preview"),
-		OpenRouterCodexModel:  envOr("OPENROUTER_CODEX_MODEL", "openai/gpt-5.4"),
+		OpenRouterBaseURL:     envOr("OPENROUTER_BASE_URL", "https://openrouter.ai/api"),
+		OpenRouterClaudeModel: envOr("OPENROUTER_CLAUDE_MODEL", "anthropic/claude-opus-5"),
+		OpenRouterGLMModel:    envOr("OPENROUTER_GLM_MODEL", "z-ai/glm-5.3-flash"),
+		OpenRouterCodexModel:  envOr("OPENROUTER_CODEX_MODEL", "openai/gpt-5.6-sol"),
 
 		AnthropicBaseURL: envOr("ANTHROPIC_BASE_URL", "https://api.anthropic.com"),
-		GeminiBaseURL:    envOr("GEMINI_BASE_URL", "https://generativelanguage.googleapis.com"),
+		GLMBaseURL:       envOr("GLM_BASE_URL", "https://api.z.ai/api/paas/v4"),
 		OpenAIBaseURL:    envOr("OPENAI_BASE_URL", "https://api.openai.com"),
 
 		MaxConcurrent:     envInt("PARALLEL_MAX_CONCURRENT", 3),

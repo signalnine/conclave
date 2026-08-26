@@ -39,7 +39,7 @@ Dispatch a `conclave:code-reviewer` subagent via the Task tool to review your ch
 
 ### Optional: Multi-Agent Consensus Review
 
-For higher-stakes reviews (before merge to main, critical systems), use multi-agent consensus. Requires API keys for Gemini and/or Codex in addition to Claude.
+For higher-stakes reviews (before merge to main, critical systems), use multi-agent consensus. Requires API keys for GLM (Z.ai) and/or Codex (OpenAI) in addition to Claude.
 
 **1. Get git SHAs:**
 ```bash
@@ -58,7 +58,7 @@ conclave consensus --mode=code-review \
 ```
 
 The framework uses a two-stage process:
-- **Stage 1:** Launches Claude, Gemini, and Codex reviewers in parallel for independent analysis
+- **Stage 1:** Launches Claude, GLM, and Codex reviewers in parallel for independent analysis
 - **Stage 2:** Chairman agent synthesizes consensus
 - Groups issues by agreement level:
   - **High Priority** - Multiple reviewers agree

@@ -232,3 +232,17 @@ func containsStr(s, sub string) bool {
 	}
 	return false
 }
+
+// TestDefaultModelIDs pins the routing defaults so a model bump is a deliberate,
+// reviewed change rather than a drift.
+func TestDefaultModelIDs(t *testing.T) {
+	if DefaultRouterModel != "claude-haiku-4-5" {
+		t.Errorf("DefaultRouterModel = %q", DefaultRouterModel)
+	}
+	if DefaultHardModel != "claude-opus-5" {
+		t.Errorf("DefaultHardModel = %q", DefaultHardModel)
+	}
+	if DefaultEasyModel != "claude-sonnet-5" {
+		t.Errorf("DefaultEasyModel = %q", DefaultEasyModel)
+	}
+}

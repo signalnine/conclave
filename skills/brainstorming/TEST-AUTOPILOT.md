@@ -4,7 +4,7 @@ Manual test guide for the consensus autopilot feature in brainstorming.
 
 ## Prerequisites
 
-- API keys configured: `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `OPENAI_API_KEY`
+- API keys configured: `ANTHROPIC_API_KEY`, `ZHIPU_API_KEY`, `OPENAI_API_KEY`
 - At least one API key working (graceful degradation)
 
 ## Test 1: Mode Selection

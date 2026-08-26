@@ -60,7 +60,7 @@ I'll help design this feature. Three modes available:
 1. **Interactive** - I ask questions, you answer, we iterate together
 2. **Autopilot** - I explore design decisions autonomously, you watch
    and can interrupt anytime to override
-3. **Consensus Autopilot** - Multi-agent consensus (Claude, Gemini, Codex)
+3. **Consensus Autopilot** - Multi-agent consensus (Claude, GLM, Codex)
    answers design questions. Requires API keys. (~30-60s per question)
 
 Which mode?
@@ -104,7 +104,7 @@ When user selects autopilot, announce: "Starting autopilot. I'll narrate each de
 
 ## Consensus Autopilot Mode
 
-Same flow as Autopilot, but each design question goes to multi-agent consensus instead of the agent's own judgment. Requires API keys for Gemini and/or Codex.
+Same flow as Autopilot, but each design question goes to multi-agent consensus instead of the agent's own judgment. Requires API keys for GLM (Z.ai) and/or Codex (OpenAI).
 
 **For each design question:**
 

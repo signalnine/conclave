@@ -132,19 +132,19 @@ func runConsensus(cmd *cobra.Command, args []string) error {
 
 	// Build agents (with OpenRouter fallbacks if key is available)
 	claude := consensus.Agent(consensus.NewClaudeAgent(cfg))
-	gemini := consensus.Agent(consensus.NewGeminiAgent(cfg))
+	glm := consensus.Agent(consensus.NewGLMAgent(cfg))
 	codex := consensus.Agent(consensus.NewCodexAgent(cfg))
 
 	if cfg.OpenRouterAPIKey != "" {
 		claude = consensus.NewFallbackAgent(claude,
 			consensus.NewOpenRouterAgent(cfg, cfg.OpenRouterClaudeModel, "Claude"))
-		gemini = consensus.NewFallbackAgent(gemini,
-			consensus.NewOpenRouterAgent(cfg, cfg.OpenRouterGeminiModel, "Gemini"))
+		glm = consensus.NewFallbackAgent(glm,
+			consensus.NewOpenRouterAgent(cfg, cfg.OpenRouterGLMModel, "GLM"))
 		codex = consensus.NewFallbackAgent(codex,
 			consensus.NewOpenRouterAgent(cfg, cfg.OpenRouterCodexModel, "Codex"))
 	}
 
-	agents := []consensus.Agent{claude, gemini, codex}
+	agents := []consensus.Agent{claude, glm, codex}
 
 	// Run consensus (with or without debate)
 	ctx := context.Background()

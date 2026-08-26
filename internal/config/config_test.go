@@ -16,18 +16,18 @@ func TestLoadAPIKeys(t *testing.T) {
 		{"anthropic only", map[string]string{"ANTHROPIC_API_KEY": "sk-test"}, 1},
 		{"all three", map[string]string{
 			"ANTHROPIC_API_KEY": "sk-test",
-			"GEMINI_API_KEY":    "gm-test",
+			"ZHIPU_API_KEY":     "zh-test",
 			"OPENAI_API_KEY":    "op-test",
 		}, 3},
-		{"gemini fallback to google", map[string]string{
-			"GOOGLE_API_KEY": "gk-test",
+		{"glm fallback to zai", map[string]string{
+			"ZAI_API_KEY": "gk-test",
 		}, 1},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Point HOME to empty temp dir so loadDotEnv() is a no-op
 			t.Setenv("HOME", t.TempDir())
-			for _, k := range []string{"ANTHROPIC_API_KEY", "GEMINI_API_KEY", "GOOGLE_API_KEY", "OPENAI_API_KEY"} {
+			for _, k := range []string{"ANTHROPIC_API_KEY", "ZHIPU_API_KEY", "ZAI_API_KEY", "GLM_API_KEY", "OPENAI_API_KEY"} {
 				t.Setenv(k, "")
 			}
 			for k, v := range tt.envVars {
@@ -38,7 +38,7 @@ func TestLoadAPIKeys(t *testing.T) {
 			if cfg.AnthropicAPIKey != "" {
 				got++
 			}
-			if cfg.GeminiAPIKey != "" {
+			if cfg.GLMAPIKey != "" {
 				got++
 			}
 			if cfg.OpenAIAPIKey != "" {
@@ -68,34 +68,34 @@ func TestLoadDotEnv(t *testing.T) {
 func TestLoadDotEnvExportPrefix(t *testing.T) {
 	dir := t.TempDir()
 	envFile := filepath.Join(dir, ".env")
-	os.WriteFile(envFile, []byte("export ANTHROPIC_API_KEY=from-dotenv-export\nexport GEMINI_API_KEY=\"quoted-value\"\n"), 0644)
+	os.WriteFile(envFile, []byte("export ANTHROPIC_API_KEY=from-dotenv-export\nexport ZHIPU_API_KEY=\"quoted-value\"\n"), 0644)
 
 	t.Setenv("ANTHROPIC_API_KEY", "")
-	t.Setenv("GEMINI_API_KEY", "")
-	t.Setenv("GOOGLE_API_KEY", "")
+	t.Setenv("ZHIPU_API_KEY", "")
+	t.Setenv("ZAI_API_KEY", "")
 	t.Setenv("HOME", dir)
 
 	cfg := Load()
 	if cfg.AnthropicAPIKey != "from-dotenv-export" {
 		t.Errorf("AnthropicAPIKey got %q, want 'from-dotenv-export'", cfg.AnthropicAPIKey)
 	}
-	if cfg.GeminiAPIKey != "quoted-value" {
-		t.Errorf("GeminiAPIKey got %q, want 'quoted-value'", cfg.GeminiAPIKey)
+	if cfg.GLMAPIKey != "quoted-value" {
+		t.Errorf("GLMAPIKey got %q, want 'quoted-value'", cfg.GLMAPIKey)
 	}
 }
 
 func TestLoadDotEnvLocalOverridesHome(t *testing.T) {
 	// Set up ~/.env with one value
 	homeDir := t.TempDir()
-	os.WriteFile(filepath.Join(homeDir, ".env"), []byte("ANTHROPIC_API_KEY=from-home\nGEMINI_API_KEY=home-only\n"), 0644)
+	os.WriteFile(filepath.Join(homeDir, ".env"), []byte("ANTHROPIC_API_KEY=from-home\nZHIPU_API_KEY=home-only\n"), 0644)
 
 	// Set up ./.env with an override for one key
 	localDir := t.TempDir()
 	os.WriteFile(filepath.Join(localDir, ".env"), []byte("ANTHROPIC_API_KEY=from-local\n"), 0644)
 
 	t.Setenv("ANTHROPIC_API_KEY", "")
-	t.Setenv("GEMINI_API_KEY", "")
-	t.Setenv("GOOGLE_API_KEY", "")
+	t.Setenv("ZHIPU_API_KEY", "")
+	t.Setenv("ZAI_API_KEY", "")
 	t.Setenv("HOME", homeDir)
 
 	// Change to the local dir so ./.env is found
@@ -107,25 +107,40 @@ func TestLoadDotEnvLocalOverridesHome(t *testing.T) {
 	if cfg.AnthropicAPIKey != "from-local" {
 		t.Errorf("AnthropicAPIKey got %q, want 'from-local' (local .env should win)", cfg.AnthropicAPIKey)
 	}
-	if cfg.GeminiAPIKey != "home-only" {
-		t.Errorf("GeminiAPIKey got %q, want 'home-only' (should fall through from ~/.env)", cfg.GeminiAPIKey)
+	if cfg.GLMAPIKey != "home-only" {
+		t.Errorf("GLMAPIKey got %q, want 'home-only' (should fall through from ~/.env)", cfg.GLMAPIKey)
 	}
 }
 
 func TestDefaults(t *testing.T) {
 	// Clear env vars that might interfere
-	for _, k := range []string{"ANTHROPIC_MODEL", "GEMINI_MODEL", "OPENAI_MODEL", "CONSENSUS_STAGE1_TIMEOUT"} {
+	for _, k := range []string{"ANTHROPIC_MODEL", "GLM_MODEL", "GLM_BASE_URL", "GLM_MAX_TOKENS", "OPENAI_MODEL", "OPENROUTER_CLAUDE_MODEL", "OPENROUTER_GLM_MODEL", "OPENROUTER_CODEX_MODEL", "CONSENSUS_STAGE1_TIMEOUT"} {
 		t.Setenv(k, "")
 	}
 	cfg := Load()
-	if cfg.AnthropicModel != "claude-opus-4-6" {
+	if cfg.AnthropicModel != "claude-opus-5" {
 		t.Errorf("AnthropicModel = %q", cfg.AnthropicModel)
 	}
-	if cfg.GeminiModel != "gemini-3.1-pro-preview" {
-		t.Errorf("GeminiModel = %q", cfg.GeminiModel)
+	if cfg.GLMModel != "glm-5.3-flash" {
+		t.Errorf("GLMModel = %q", cfg.GLMModel)
 	}
-	if cfg.OpenAIModel != "gpt-5.4" {
+	if cfg.GLMBaseURL != "https://api.z.ai/api/paas/v4" {
+		t.Errorf("GLMBaseURL = %q", cfg.GLMBaseURL)
+	}
+	if cfg.GLMMaxTokens != 16000 {
+		t.Errorf("GLMMaxTokens = %d", cfg.GLMMaxTokens)
+	}
+	if cfg.OpenAIModel != "gpt-5.6-sol" {
 		t.Errorf("OpenAIModel = %q", cfg.OpenAIModel)
+	}
+	if cfg.OpenRouterClaudeModel != "anthropic/claude-opus-5" {
+		t.Errorf("OpenRouterClaudeModel = %q", cfg.OpenRouterClaudeModel)
+	}
+	if cfg.OpenRouterGLMModel != "z-ai/glm-5.3-flash" {
+		t.Errorf("OpenRouterGLMModel = %q", cfg.OpenRouterGLMModel)
+	}
+	if cfg.OpenRouterCodexModel != "openai/gpt-5.6-sol" {
+		t.Errorf("OpenRouterCodexModel = %q", cfg.OpenRouterCodexModel)
 	}
 	if cfg.Stage1Timeout != 60 {
 		t.Errorf("Stage1Timeout = %d", cfg.Stage1Timeout)

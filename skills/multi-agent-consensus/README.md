@@ -1,6 +1,6 @@
 # Multi-Agent Consensus Framework
 
-Reusable infrastructure for multi-agent consensus. Any skill can invoke Claude, Gemini, and Codex to get diverse perspectives on prompts, designs, code, or decisions.
+Reusable infrastructure for multi-agent consensus. Any skill can invoke Claude, GLM, and Codex to get diverse perspectives on prompts, designs, code, or decisions.
 
 ## Purpose
 
@@ -71,23 +71,25 @@ export ANTHROPIC_API_KEY="sk-ant-..."
 echo 'export ANTHROPIC_API_KEY="sk-ant-..."' >> ~/.bashrc
 
 # Optional: Configure model and token limit
-export ANTHROPIC_MODEL="claude-opus-4-5-20251101"
+export ANTHROPIC_MODEL="claude-opus-5"
 export ANTHROPIC_MAX_TOKENS="16000"  # Default: 16000, adjust if using models with lower limits
 ```
 
-**Gemini Agent (Optional but Recommended)**
+**GLM Agent (Optional but Recommended)**
 
 ```bash
-# Get API key from: https://ai.google.dev/
+# Get API key from: https://z.ai/ (ZAI_API_KEY and GLM_API_KEY are accepted too)
 
 # Set environment variable
-export GEMINI_API_KEY="..."
+export ZHIPU_API_KEY="..."
 
 # Add to your shell profile
-echo 'export GEMINI_API_KEY="..."' >> ~/.bashrc
+echo 'export ZHIPU_API_KEY="..."' >> ~/.bashrc
 
-# Optional: Configure model (default: gemini-3-pro-preview)
-export GEMINI_MODEL="gemini-3-pro-preview"
+# Optional: Configure model (default: glm-5.3-flash)
+export GLM_MODEL="glm-5.3-flash"
+export GLM_MAX_TOKENS="16000"  # Thinking is always on for glm-5.3-flash; leave room for it
+export GLM_BASE_URL="https://api.z.ai/api/paas/v4"  # OpenAI-compatible endpoint
 ```
 
 **OpenAI Agent (Optional)**
@@ -104,19 +106,19 @@ export OPENAI_API_KEY="sk-..."
 echo 'export OPENAI_API_KEY="sk-..."' >> ~/.bashrc
 
 # Optional: Configure model and token limit
-export OPENAI_MODEL="gpt-5.1-codex-max"
+export OPENAI_MODEL="gpt-5.6-sol"
 export OPENAI_MAX_TOKENS="16000"  # Default: 16000, adjust if using models with lower limits (e.g., 4096 for gpt-4-turbo)
 ```
 
 ### Minimum Requirements
 
 **For basic functionality:**
-- At least one API key (ANTHROPIC_API_KEY, GEMINI_API_KEY, or OPENAI_API_KEY)
+- At least one API key (ANTHROPIC_API_KEY, ZHIPU_API_KEY, or OPENAI_API_KEY)
 - curl, jq, bash, bc, git
 
 **For full consensus (recommended):**
-- All three API keys: ANTHROPIC_API_KEY, GEMINI_API_KEY, and OPENAI_API_KEY
-- This provides three independent perspectives from Claude, Gemini, and OpenAI
+- All three API keys: ANTHROPIC_API_KEY, ZHIPU_API_KEY, and OPENAI_API_KEY
+- This provides three independent perspectives from Claude, GLM (Z.ai), and OpenAI
 
 ## Verification
 
@@ -144,7 +146,7 @@ HEAD=$(git rev-parse HEAD)
 
 # Look for:
 # Claude: ✓ (always works)
-# Gemini: ✓ or ✗ (not installed)
+# GLM: ✓ or ✗ (not available)
 # Codex: ✓ or ✗ (not available)
 ```
 
@@ -176,13 +178,13 @@ Three-tier consensus report:
 ## High Priority - All Reviewers Agree
 - [SEVERITY] description
   - Claude: "issue text"
-  - Gemini: "issue text"
+  - GLM: "issue text"
   - Codex: "issue text"
 
 ## Medium Priority - Majority Flagged (2/3)
 - [SEVERITY] description
   - Claude: "issue text"
-  - Gemini: "issue text"
+  - GLM: "issue text"
 
 ## Consider - Single Reviewer Mentioned
 - [SEVERITY] description
@@ -192,13 +194,13 @@ Three-tier consensus report:
 ## How It Works
 
 **Stage 1: Parallel Independent Analysis**
-- Claude, Gemini, and Codex analyze the prompt independently
+- Claude, GLM, and Codex analyze the prompt independently
 - Each provides structured feedback (Critical/Important/Suggestions)
 - 60-second timeout per agent (configurable)
 - Results collected from all successful agents
 
 **Stage 2: Chairman Synthesis**
-- Chairman agent (Claude → Gemini → Codex fallback) synthesizes consensus
+- Chairman agent (Claude → GLM → Codex fallback) synthesizes consensus
 - Groups issues by agreement level
 - Highlights disagreements explicitly
 - Produces final three-tier report
@@ -212,7 +214,7 @@ Three-tier consensus report:
 - curl (for API calls)
 - jq (for JSON parsing)
 - ANTHROPIC_API_KEY (for Claude agent)
-- GEMINI_API_KEY (for Gemini agent)
+- ZHIPU_API_KEY (for GLM agent; ZAI_API_KEY / GLM_API_KEY also accepted)
 - OPENAI_API_KEY (for OpenAI agent)
 
 ## Configuration

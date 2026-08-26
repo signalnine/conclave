@@ -20,9 +20,9 @@ const (
 
 // Default models.
 const (
-	DefaultRouterModel = "claude-haiku-4-5-20251001"
-	DefaultHardModel   = "claude-opus-4-6"
-	DefaultEasyModel   = "claude-sonnet-4-6"
+	DefaultRouterModel = "claude-haiku-4-5"
+	DefaultHardModel   = "claude-opus-5"
+	DefaultEasyModel   = "claude-sonnet-5"
 )
 
 // Router classifies task complexity and selects an appropriate model.

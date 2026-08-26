@@ -1,6 +1,6 @@
 # Conclave
 
-Conclave is a structured development methodology plugin for coding agents. It provides composable "skills" — TDD, design brainstorming, verification, and code review — that activate automatically based on task type and guide the agent through disciplined workflows. Benchmark data from 796 isolated trials shows these skills improve code quality by 10-12 points over unguided development. Optionally includes multi-agent consensus (Claude, Gemini, Codex) for higher-stakes decisions.
+Conclave is a structured development methodology plugin for coding agents. It provides composable "skills" — TDD, design brainstorming, verification, and code review — that activate automatically based on task type and guide the agent through disciplined workflows. Benchmark data from 796 isolated trials shows these skills improve code quality by 10-12 points over unguided development. Optionally includes multi-agent consensus (Claude, GLM, Codex) for higher-stakes decisions.
 
 > Forked from [obra/superpowers](https://github.com/obra/superpowers) under MIT license
 
@@ -130,7 +130,7 @@ Fetch and follow instructions from https://raw.githubusercontent.com/signalnine/
 
 5. **test-driven-development** - Activates during implementation. Enforces RED-GREEN-REFACTOR: write failing test, watch it fail, write minimal code, watch it pass, commit. Deletes code written before tests.
 
-6. **requesting-code-review** - Activates between tasks. Multi-reviewer consensus from Claude, Gemini, and Codex. Groups issues by agreement level (all agree -> high priority, majority -> medium, single -> consider). Critical issues block progress.
+6. **requesting-code-review** - Activates between tasks. Multi-reviewer consensus from Claude, GLM, and Codex. Groups issues by agreement level (all agree -> high priority, majority -> medium, single -> consider). Critical issues block progress.
 
 7. **finishing-a-development-branch** - Activates when tasks complete. Verifies tests, presents options (merge/PR/keep/discard), cleans up worktree.
 
@@ -170,7 +170,7 @@ Fetch and follow instructions from https://raw.githubusercontent.com/signalnine/
 
 **Collaboration**
 - **brainstorming** - Socratic design refinement with optional multi-agent validation
-- **multi-agent-consensus** - Get consensus from Claude/Gemini/Codex on any prompt (design validation, architecture decisions, debugging, code review)
+- **multi-agent-consensus** - Get consensus from Claude/GLM/Codex on any prompt (design validation, architecture decisions, debugging, code review)
 - **writing-plans** - Detailed implementation plans
 - **executing-plans** - Batch execution with checkpoints
 - **dispatching-parallel-agents** - Concurrent subagent workflows

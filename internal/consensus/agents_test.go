@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/signalnine/conclave/internal/config"
@@ -79,17 +80,27 @@ func TestClaudeAgent_APIError(t *testing.T) {
 	}
 }
 
-func TestGeminiAgent_Run(t *testing.T) {
+func TestGLMAgent_Run(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Query().Get("key") != "gm-test" {
-			t.Error("missing api key query param")
+		if r.URL.Path != "/chat/completions" {
+			t.Errorf("path = %q, want /chat/completions", r.URL.Path)
+		}
+		if r.Header.Get("Authorization") != "Bearer zh-test" {
+			t.Errorf("Authorization = %q", r.Header.Get("Authorization"))
+		}
+		var body map[string]any
+		json.NewDecoder(r.Body).Decode(&body)
+		if body["model"] != "glm-5.3-flash" {
+			t.Errorf("model = %v", body["model"])
+		}
+		if body["max_tokens"] != float64(4096) {
+			t.Errorf("max_tokens = %v", body["max_tokens"])
 		}
 		json.NewEncoder(w).Encode(map[string]any{
-			"candidates": []map[string]any{
-				{"content": map[string]any{
-					"parts": []map[string]any{
-						{"text": "gemini response"},
-					},
+			"choices": []map[string]any{
+				{"message": map[string]any{
+					"reasoning_content": "thinking...",
+					"content":           "glm response",
 				}},
 			},
 		})
@@ -97,27 +108,56 @@ func TestGeminiAgent_Run(t *testing.T) {
 	defer srv.Close()
 
 	cfg := &config.Config{
-		GeminiAPIKey:  "gm-test",
-		GeminiModel:   "gemini-test",
-		GeminiBaseURL: srv.URL,
+		GLMAPIKey:    "zh-test",
+		GLMModel:     "glm-5.3-flash",
+		GLMMaxTokens: 4096,
+		GLMBaseURL:   srv.URL,
 	}
-	a := NewGeminiAgent(cfg)
-	got, err := a.Run(context.Background(), "test prompt")
+	got, err := NewGLMAgent(cfg).Run(context.Background(), "test prompt")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got != "gemini response" {
+	if got != "glm response" {
 		t.Errorf("got %q", got)
 	}
 }
 
-func TestGeminiAgent_Available(t *testing.T) {
-	a := NewGeminiAgent(&config.Config{GeminiAPIKey: ""})
-	if a.Available() {
+func TestGLMAgent_Run_APIError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(429)
+		json.NewEncoder(w).Encode(map[string]any{
+			"error": map[string]any{"code": "1113", "message": "Insufficient balance or no resource package. Please recharge."},
+		})
+	}))
+	defer srv.Close()
+
+	cfg := &config.Config{GLMAPIKey: "zh-test", GLMModel: "glm-5.3-flash", GLMMaxTokens: 100, GLMBaseURL: srv.URL}
+	_, err := NewGLMAgent(cfg).Run(context.Background(), "test")
+	if err == nil || !strings.Contains(err.Error(), "Insufficient balance") {
+		t.Errorf("expected API error surfaced, got %v", err)
+	}
+}
+
+func TestGLMAgent_Run_EmptyContent(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode(map[string]any{
+			"choices": []map[string]any{{"message": map[string]any{"reasoning_content": "only thought", "content": ""}}},
+		})
+	}))
+	defer srv.Close()
+
+	cfg := &config.Config{GLMAPIKey: "zh-test", GLMModel: "glm-5.3-flash", GLMMaxTokens: 100, GLMBaseURL: srv.URL}
+	_, err := NewGLMAgent(cfg).Run(context.Background(), "test")
+	if err == nil {
+		t.Error("expected error for empty content")
+	}
+}
+
+func TestGLMAgent_Available(t *testing.T) {
+	if NewGLMAgent(&config.Config{GLMAPIKey: ""}).Available() {
 		t.Error("should not be available without key")
 	}
-	a2 := NewGeminiAgent(&config.Config{GeminiAPIKey: "key"})
-	if !a2.Available() {
+	if !NewGLMAgent(&config.Config{GLMAPIKey: "key"}).Available() {
 		t.Error("should be available with key")
 	}
 }
