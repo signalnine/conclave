@@ -78,3 +78,18 @@ conclave consensus --mode=general-prompt \
 - Covers P95-P99 API latency scenarios
 - Adjust higher for very complex prompts or slow networks
 - Adjust lower for simple prompts when speed is critical
+
+## When It Fails
+
+Stderr reports each agent (`Claude: SUCCESS`, `Gemini: FAILED (API error: ...)`) and then `Agents completed: n/3 succeeded`. One failed agent does not stop the run.
+
+| Message | Cause | What to do |
+|---------|-------|------------|
+| `no agents available (need at least 1 API key)` | None of `ANTHROPIC_API_KEY`, `GEMINI_API_KEY` (or `GOOGLE_API_KEY`), `OPENAI_API_KEY` is set | Export at least one, or put it in `./.env` or `~/.env` (both load automatically) |
+| `<Agent>: FAILED (API error: ...)`, run continues | Bad key, quota, or model error for that provider | Nothing required. Consensus proceeds with the agents that succeeded; fix the key to get that voice back |
+| `<Agent>: FAILED (... context deadline exceeded)` | Stage 1 exceeded its timeout (default 60s) | Raise `--stage1-timeout` or `CONSENSUS_STAGE1_TIMEOUT`, or shorten the prompt and context |
+| `all agents failed (0/n succeeded)` | Every provider errored or timed out | Check network and keys, rerun with a longer timeout. If it persists, do single-agent analysis and say consensus was unavailable |
+| `stage 2 failed: all chairman agents failed` | Every chairman candidate (Claude, then Gemini, then Codex) failed to synthesize | Rerun with `--stage2-timeout` raised. Stage 1 output is not saved on this path, so if it repeats, run the agents individually |
+| `git diff: ...` (code-review mode) | Unknown SHA, or not run from inside the repository | Check both SHAs with `git rev-parse <sha>` from the repo root |
+| `reading plan file "...": ...` | `--plan-file` path does not exist | Fix the path or omit the flag; it is optional |
+| `--mode is required`, `... requires --base-sha, --head-sha, --description`, `... requires --prompt` | Missing flags | See Interface above. `--dry-run` validates arguments without calling any API |

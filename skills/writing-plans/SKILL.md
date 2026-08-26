@@ -130,6 +130,17 @@ conclave consensus --mode=general-prompt \
 - If user accepts concerns → Proceed to Execution Handoff
 - If user wants to skip → Proceed (their choice)
 
+**If validation cannot run:**
+
+| Symptom | What to do |
+|---------|------------|
+| `conclave: command not found` | Use the full binary path from the session context. Not available either? Skip validation and announce: "Plan not validated: conclave binary unavailable" |
+| `no agents available (need at least 1 API key)` | Skip validation and announce: "Plan not validated: no consensus API keys". Proceed to Execution Handoff |
+| One agent `FAILED`, run completes | Normal. Use the report; it reflects the agents that responded |
+| `all agents failed` or timeouts on a large plan | Rerun with `--stage1-timeout=180`, or validate in sections by passing one wave at a time as `--context` |
+| `docs/plans/` does not exist | `mkdir -p docs/plans` before saving |
+| Not in a worktree | Warn the user once, then continue. The plan file is what matters, not where it was written |
+
 ## Execution Handoff
 
 **If `CONCLAVE_NON_INTERACTIVE=1`:** Skip the choice, use Subagent-Driven automatically. Announce: "Non-interactive mode: using subagent-driven execution."

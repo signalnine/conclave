@@ -36,23 +36,6 @@ Example:
 EOF
 }
 
-# Validate arguments
-if [ $# -lt 4 ]; then
-    show_usage
-    exit 1
-fi
-
-BASE_SHA="$1"
-HEAD_SHA="$2"
-PLAN_FILE="$3"
-DESCRIPTION="$4"
-
-# Check for --dry-run flag (for testing)
-DRY_RUN=false
-if [ "${5:-}" = "--dry-run" ]; then
-    DRY_RUN=true
-fi
-
 # === Reviewer Functions ===
 
 # Launch Claude code-reviewer subagent
@@ -402,6 +385,29 @@ aggregate_consensus() {
     # Cleanup
     rm -f "$all_issues_file" "$consensus_all" "$consensus_majority" "$consensus_single"
 }
+
+# When sourced (e.g. by test-multi-review.sh), stop here so callers get the
+# functions above without running a review.
+if [[ "${BASH_SOURCE[0]}" != "${0}" ]]; then
+    return 0
+fi
+
+# Validate arguments
+if [ $# -lt 4 ]; then
+    show_usage
+    exit 1
+fi
+
+BASE_SHA="$1"
+HEAD_SHA="$2"
+PLAN_FILE="$3"
+DESCRIPTION="$4"
+
+# Check for --dry-run flag (for testing)
+DRY_RUN=false
+if [ "${5:-}" = "--dry-run" ]; then
+    DRY_RUN=true
+fi
 
 # === Context Preparation ===
 

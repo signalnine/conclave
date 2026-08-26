@@ -9,15 +9,17 @@ description: Use when creating new skills, editing existing skills, or verifying
 
 **Writing skills IS Test-Driven Development applied to process documentation.**
 
-**Personal skills live in agent-specific directories (`~/.claude/skills` for Claude Code, `~/.codex/skills` for Codex)** 
-
 You write test cases (pressure scenarios with subagents), watch them fail (baseline behavior), write the skill (documentation), watch tests pass (agents comply), and refactor (close loopholes).
 
 **Core principle:** If you didn't watch an agent fail without the skill, you don't know if the skill teaches the right thing.
 
 **REQUIRED BACKGROUND:** You MUST understand conclave:test-driven-development before using this skill. That skill defines the fundamental RED-GREEN-REFACTOR cycle. This skill adapts TDD to documentation.
 
-**Official guidance:** For Anthropic's official skill authoring best practices, see anthropic-best-practices.md. This document provides additional patterns and guidelines that complement the TDD-focused approach in this skill.
+**Reference files in this directory:**
+- `testing-skills-with-subagents.md` - complete testing methodology: pressure scenarios, plugging loopholes, meta-testing, and how to test each skill type
+- `anthropic-best-practices.md` - Anthropic's official skill authoring guidance
+- `persuasion-principles.md` - why bulletproofing techniques work (Cialdini, 2021; Meincke et al., 2025)
+- `graphviz-conventions.dot` - style rules for flowcharts; `render-graphs.js` renders them to SVG
 
 ## What is a Skill?
 
@@ -60,17 +62,13 @@ The entire skill creation process follows RED-GREEN-REFACTOR.
 
 ## Skill Types
 
-### Technique
-Concrete method with steps to follow (condition-based-waiting, root-cause-tracing)
-
-### Pattern
-Way of thinking about problems (flatten-with-flags, test-invariants)
-
-### Reference
-API docs, syntax guides, tool documentation (office docs)
+- **Technique** - concrete method with steps to follow (condition-based-waiting, root-cause-tracing)
+- **Pattern** - way of thinking about problems (flatten-with-flags, test-invariants)
+- **Reference** - API docs, syntax guides, tool documentation (office docs)
 
 ## Directory Structure
 
+Personal skills live in agent-specific directories (`~/.claude/skills` for Claude Code, `~/.codex/skills` for Codex). Plugin skills live under `skills/` in one flat, searchable namespace.
 
 ```
 skills/
@@ -79,16 +77,23 @@ skills/
     supporting-file.*     # Only if needed
 ```
 
-**Flat namespace** - all skills in one searchable namespace
-
 **Separate files for:**
 1. **Heavy reference** (100+ lines) - API docs, comprehensive syntax
 2. **Reusable tools** - Scripts, utilities, templates
 
-**Keep inline:**
-- Principles and concepts
-- Code patterns (< 50 lines)
-- Everything else
+**Keep inline:** principles and concepts, code patterns under 50 lines, everything else.
+
+```
+defense-in-depth/            # Self-contained: everything fits inline
+  SKILL.md
+condition-based-waiting/     # Reusable tool: working helpers to adapt
+  SKILL.md
+  example.ts
+pptx/                        # Heavy reference: too large for inline
+  SKILL.md                   # Overview + workflows
+  pptxgenjs.md               # 600 lines API reference
+  scripts/                   # Executable tools
+```
 
 ## SKILL.md Structure
 
@@ -135,7 +140,6 @@ What goes wrong + fixes
 ## Real-World Impact (optional)
 Concrete results
 ```
-
 
 ## Claude Search Optimization (CSO)
 
@@ -206,76 +210,29 @@ Use words Claude would search for:
 
 ### 3. Descriptive Naming
 
-**Use active voice, verb-first:**
+Name by what you DO or the core insight. Active voice, verb-first:
+- ✅ `condition-based-waiting` > `async-test-helpers`
+- ✅ `root-cause-tracing` > `debugging-techniques`
 - ✅ `creating-skills` not `skill-creation`
-- ✅ `condition-based-waiting` not `async-test-helpers`
+
+Gerunds (-ing) work well for processes: `creating-skills`, `testing-skills`, `debugging-with-logs`.
 
 ### 4. Token Efficiency (Critical)
 
 **Problem:** getting-started and frequently-referenced skills load into EVERY conversation. Every token counts.
 
-**Target word counts:**
+**Target word counts** (check with `wc -w skills/path/SKILL.md`):
 - getting-started workflows: <150 words each
 - Frequently-loaded skills: <200 words total
 - Other skills: <500 words (still be concise)
 
 **Techniques:**
+- **Move details to tool help:** "Run `--help` for details" beats listing every flag in SKILL.md
+- **Cross-reference instead of repeating:** `REQUIRED: Use [other-skill-name] for workflow` beats 20 lines of duplicated instructions
+- **Compress examples:** `Partner: "How did we handle auth errors?" / You: Searching... [Dispatch subagent → synthesis]` beats a full transcript
+- **Eliminate redundancy:** don't repeat cross-referenced skills, don't explain what the command makes obvious, one example per pattern
 
-**Move details to tool help:**
-```bash
-# ❌ BAD: Document all flags in SKILL.md
-search-conversations supports --text, --both, --after DATE, --before DATE, --limit N
-
-# ✅ GOOD: Reference --help
-search-conversations supports multiple modes and filters. Run --help for details.
-```
-
-**Use cross-references:**
-```markdown
-# ❌ BAD: Repeat workflow details
-When searching, dispatch subagent with template...
-[20 lines of repeated instructions]
-
-# ✅ GOOD: Reference other skill
-Always use subagents (50-100x context savings). REQUIRED: Use [other-skill-name] for workflow.
-```
-
-**Compress examples:**
-```markdown
-# ❌ BAD: Verbose example (42 words)
-your human partner: "How did we handle authentication errors in React Router before?"
-You: I'll search past conversations for React Router authentication patterns.
-[Dispatch subagent with search query: "React Router authentication error handling 401"]
-
-# ✅ GOOD: Minimal example (20 words)
-Partner: "How did we handle auth errors in React Router?"
-You: Searching...
-[Dispatch subagent → synthesis]
-```
-
-**Eliminate redundancy:**
-- Don't repeat what's in cross-referenced skills
-- Don't explain what's obvious from command
-- Don't include multiple examples of same pattern
-
-**Verification:**
-```bash
-wc -w skills/path/SKILL.md
-# getting-started workflows: aim for <150 each
-# Other frequently-loaded: aim for <200 total
-```
-
-**Name by what you DO or core insight:**
-- ✅ `condition-based-waiting` > `async-test-helpers`
-- ✅ `using-skills` not `skill-usage`
-- ✅ `flatten-with-flags` > `data-structure-refactoring`
-- ✅ `root-cause-tracing` > `debugging-techniques`
-
-**Gerunds (-ing) work well for processes:**
-- `creating-skills`, `testing-skills`, `debugging-with-logs`
-- Active, describes the action you're taking
-
-### 4. Cross-Referencing Other Skills
+### 5. Cross-Referencing Other Skills
 
 **When writing documentation that references other skills:**
 
@@ -313,7 +270,7 @@ digraph when_flowchart {
 - Linear instructions → Numbered lists
 - Labels without semantic meaning (step1, helper2)
 
-See @graphviz-conventions.dot for graphviz style rules.
+See `graphviz-conventions.dot` for graphviz style rules.
 
 **Visualizing for your human partner:** Use `render-graphs.js` in this directory to render a skill's flowcharts to SVG:
 ```bash
@@ -330,46 +287,9 @@ Choose most relevant language:
 - System debugging → Shell/Python
 - Data processing → Python
 
-**Good example:**
-- Complete and runnable
-- Well-commented explaining WHY
-- From real scenario
-- Shows pattern clearly
-- Ready to adapt (not generic template)
+**Good example:** complete and runnable, well-commented explaining WHY, from a real scenario, shows the pattern clearly, ready to adapt (not a generic template).
 
-**Don't:**
-- Implement in 5+ languages
-- Create fill-in-the-blank templates
-- Write contrived examples
-
-You're good at porting - one great example is enough.
-
-## File Organization
-
-### Self-Contained Skill
-```
-defense-in-depth/
-  SKILL.md    # Everything inline
-```
-When: All content fits, no heavy reference needed
-
-### Skill with Reusable Tool
-```
-condition-based-waiting/
-  SKILL.md    # Overview + patterns
-  example.ts  # Working helpers to adapt
-```
-When: Tool is reusable code, not just narrative
-
-### Skill with Heavy Reference
-```
-pptx/
-  SKILL.md       # Overview + workflows
-  pptxgenjs.md   # 600 lines API reference
-  ooxml.md       # 500 lines XML structure
-  scripts/       # Executable tools
-```
-When: Reference material too large for inline
+**Don't:** implement in 5+ languages, create fill-in-the-blank templates, write contrived examples. You're good at porting - one great example is enough.
 
 ## The Iron Law (Same as TDD)
 
@@ -392,55 +312,6 @@ Edit skill without testing? Same violation.
 
 **REQUIRED BACKGROUND:** The conclave:test-driven-development skill explains why this matters. Same principles apply to documentation.
 
-## Testing All Skill Types
-
-Different skill types need different test approaches:
-
-### Discipline-Enforcing Skills (rules/requirements)
-
-**Examples:** TDD, verification-before-completion, designing-before-coding
-
-**Test with:**
-- Academic questions: Do they understand the rules?
-- Pressure scenarios: Do they comply under stress?
-- Multiple pressures combined: time + sunk cost + exhaustion
-- Identify rationalizations and add explicit counters
-
-**Success criteria:** Agent follows rule under maximum pressure
-
-### Technique Skills (how-to guides)
-
-**Examples:** condition-based-waiting, root-cause-tracing, defensive-programming
-
-**Test with:**
-- Application scenarios: Can they apply the technique correctly?
-- Variation scenarios: Do they handle edge cases?
-- Missing information tests: Do instructions have gaps?
-
-**Success criteria:** Agent successfully applies technique to new scenario
-
-### Pattern Skills (mental models)
-
-**Examples:** reducing-complexity, information-hiding concepts
-
-**Test with:**
-- Recognition scenarios: Do they recognize when pattern applies?
-- Application scenarios: Can they use the mental model?
-- Counter-examples: Do they know when NOT to apply?
-
-**Success criteria:** Agent correctly identifies when/how to apply pattern
-
-### Reference Skills (documentation/APIs)
-
-**Examples:** API documentation, command references, library guides
-
-**Test with:**
-- Retrieval scenarios: Can they find the right information?
-- Application scenarios: Can they use what they found correctly?
-- Gap testing: Are common use cases covered?
-
-**Success criteria:** Agent finds and correctly applies reference information
-
 ## Common Rationalizations for Skipping Testing
 
 | Excuse | Reality |
@@ -460,75 +331,13 @@ Different skill types need different test approaches:
 
 Skills that enforce discipline (like TDD) need to resist rationalization. Agents are smart and will find loopholes when under pressure.
 
-**Psychology note:** Understanding WHY persuasion techniques work helps you apply them systematically. See persuasion-principles.md for research foundation (Cialdini, 2021; Meincke et al., 2025) on authority, commitment, scarcity, social proof, and unity principles.
+- **State the foundational principle early:** "Violating the letter of the rules is violating the spirit of the rules." This cuts off the entire class of "I'm following the spirit" arguments.
+- **Close every loophole explicitly.** "Write code before test? Delete it." is not enough. Forbid the workarounds by name: don't keep it as "reference", don't "adapt" it while writing tests, don't look at it, delete means delete.
+- **Build a rationalization table** from baseline testing. Every excuse agents make goes in an `| Excuse | Reality |` table.
+- **Create a red flags list** so agents can self-check: "Code before test", "I already manually tested it", "This is different because...". End it with the required action.
+- **Update the description with violation symptoms:** `use when implementing any feature or bugfix, before writing implementation code`.
 
-### Close Every Loophole Explicitly
-
-Don't just state the rule - forbid specific workarounds:
-
-<Bad>
-```markdown
-Write code before test? Delete it.
-```
-</Bad>
-
-<Good>
-```markdown
-Write code before test? Delete it. Start over.
-
-**No exceptions:**
-- Don't keep it as "reference"
-- Don't "adapt" it while writing tests
-- Don't look at it
-- Delete means delete
-```
-</Good>
-
-### Address "Spirit vs Letter" Arguments
-
-Add foundational principle early:
-
-```markdown
-**Violating the letter of the rules is violating the spirit of the rules.**
-```
-
-This cuts off entire class of "I'm following the spirit" rationalizations.
-
-### Build Rationalization Table
-
-Capture rationalizations from baseline testing (see Testing section below). Every excuse agents make goes in the table:
-
-```markdown
-| Excuse | Reality |
-|--------|---------|
-| "Too simple to test" | Simple code breaks. Test takes 30 seconds. |
-| "I'll test after" | Tests passing immediately prove nothing. |
-| "Tests after achieve same goals" | Tests-after = "what does this do?" Tests-first = "what should this do?" |
-```
-
-### Create Red Flags List
-
-Make it easy for agents to self-check when rationalizing:
-
-```markdown
-## Red Flags - STOP and Start Over
-
-- Code before test
-- "I already manually tested it"
-- "Tests after achieve the same purpose"
-- "It's about spirit not ritual"
-- "This is different because..."
-
-**All of these mean: Delete code. Start over with TDD.**
-```
-
-### Update CSO for Violation Symptoms
-
-Add to description: symptoms of when you're ABOUT to violate the rule:
-
-```yaml
-description: use when implementing any feature or bugfix, before writing implementation code
-```
+`testing-skills-with-subagents.md` walks through each of these with before/after examples; `persuasion-principles.md` explains why they work.
 
 ## RED-GREEN-REFACTOR for Skills
 
@@ -553,11 +362,12 @@ Run same scenarios WITH skill. Agent should now comply.
 
 Agent found new rationalization? Add explicit counter. Re-test until bulletproof.
 
-**Testing methodology:** See @testing-skills-with-subagents.md for the complete testing methodology:
+**Testing methodology:** See `testing-skills-with-subagents.md` for the complete testing methodology:
 - How to write pressure scenarios
 - Pressure types (time, sunk cost, authority, exhaustion)
 - Plugging holes systematically
 - Meta-testing techniques
+- What to test for each skill type (discipline: pressure scenarios; technique: application and variation; pattern: recognition and counter-examples; reference: retrieval and gap testing)
 
 ## Anti-Patterns
 
@@ -637,10 +447,10 @@ Deploying untested skills = deploying untested code. It's a violation of quality
 How future Claude finds your skill:
 
 1. **Encounters problem** ("tests are flaky")
-3. **Finds SKILL** (description matches)
-4. **Scans overview** (is this relevant?)
-5. **Reads patterns** (quick reference table)
-6. **Loads example** (only when implementing)
+2. **Finds SKILL** (description matches)
+3. **Scans overview** (is this relevant?)
+4. **Reads patterns** (quick reference table)
+5. **Loads example** (only when implementing)
 
 **Optimize for this flow** - put searchable terms early and often.
 

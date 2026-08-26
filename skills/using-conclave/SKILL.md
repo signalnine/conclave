@@ -3,6 +3,8 @@ name: using-conclave
 description: Use when starting any conversation - establishes how to find and use skills, requiring Skill tool invocation before ANY response including clarifying questions
 ---
 
+# Using Conclave
+
 ## How to Access Skills
 
 **In Claude Code:** Use the `Skill` tool with the `conclave:` namespace prefix. When you invoke a skill, its content is loaded and presented to you — follow it directly. Never use the Read tool on skill files.
@@ -83,6 +85,14 @@ code review (see requesting-code-review skill, "Second-Pass Review").
 8. Only stop when verification passes AND diff review is clean
 
 Evidence before claims, always. "Should pass" is not evidence.
+
+## When Something Fails
+
+- **Skill won't load** (Skill tool error, unknown skill): retry with the `conclave:` prefix and the exact name from the table. Do not fall back to reading the SKILL.md file.
+- **`conclave route` fails** (missing binary, no key, network): skip routing, stay on the current model, continue the workflow.
+- **Verification suite can't run** (no test/build/lint command in this project, or it errors before any test runs): report exactly that. "Could not run tests" is a valid status; "tests pass" without output is not.
+- **Commit blocked** (not a git repo, hook rejects, protected branch): report what blocked it and what is uncommitted. Still do the diff review.
+- **Suite fails on code you didn't touch**: still a failure. Fix it, or report it as pre-existing with the exact output. Never claim done over a red suite.
 
 ## Red Flags
 

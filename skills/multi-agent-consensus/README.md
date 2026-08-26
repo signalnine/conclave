@@ -370,7 +370,7 @@ Validate traced causal path from symptom to root trigger:
 # Example tracing context
 CONTEXT=$(cat << 'EOF'
 ## Error Description
-Git init fails with "directory not found: /Users/jesse/project/packages/core"
+Git init fails with "directory not found: /path/to/project/packages/core"
 Error occurs deep in execution (WorktreeManager.createWorktree)
 
 ## Evidence Collected

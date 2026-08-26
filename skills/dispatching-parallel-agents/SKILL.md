@@ -74,10 +74,10 @@ Task("Fix tool-approval-race-conditions.test.ts failures")
 ### 4. Review and Integrate
 
 When agents return:
-- Read each summary
-- Verify fixes don't conflict
-- Run full test suite
-- Integrate all changes
+1. **Review each summary** - Understand what changed
+2. **Check for conflicts** - Did agents edit same code?
+3. **Run full suite** - Verify all fixes work together
+4. **Spot check** - Agents can make systematic errors
 
 ## Agent Prompt Structure
 
@@ -161,14 +161,6 @@ Agent 3 → Fix tool-approval-race-conditions.test.ts
 2. **Focus** - Each agent has narrow scope, less context to track
 3. **Independence** - Agents don't interfere with each other
 4. **Speed** - 3 problems solved in time of 1
-
-## Verification
-
-After agents return:
-1. **Review each summary** - Understand what changed
-2. **Check for conflicts** - Did agents edit same code?
-3. **Run full suite** - Verify all fixes work together
-4. **Spot check** - Agents can make systematic errors
 
 ## Real-World Impact
 

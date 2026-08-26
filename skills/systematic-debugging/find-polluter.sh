@@ -31,7 +31,7 @@ for TEST_FILE in $TEST_FILES; do
 
   # Skip if pollution already exists
   if [ -e "$POLLUTION_CHECK" ]; then
-    echo "⚠️  Pollution already exists before test $COUNT/$TOTAL"
+    echo "⚠  Pollution already exists before test $COUNT/$TOTAL"
     echo "   Skipping: $TEST_FILE"
     continue
   fi

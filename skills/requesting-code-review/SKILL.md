@@ -121,6 +121,18 @@ After the second review:
 - Show code/tests that prove it works
 - Request clarification
 
+## When Review Can't Run
+
+| Symptom | What to do |
+|---------|------------|
+| `git merge-base origin/main HEAD` fails (no `origin` remote, or the default branch is not `main`) | Use the branch point you know: `git merge-base main HEAD`, or `git rev-parse HEAD~N` for the last N commits |
+| `fatal: bad revision` / `unknown revision` on a SHA | Re-copy it from `git log --oneline`; confirm you are in the right repository or worktree |
+| Uncommitted changes in the working tree | Commit first (step 1). The reviewer only sees the diff between the two SHAs |
+| `conclave consensus` prints `no agents available (need at least 1 API key)` | Consensus is optional. Use the default subagent review and say "consensus review skipped: no API keys" |
+| Consensus shows one agent `FAILED` but finishes | Normal. The report reflects the agents that succeeded; read "all reviewers agree" as agreement among those |
+| `--plan-file` path does not exist | Omit the flag. The reviewer works from the diff and description |
+| Reviewer subagent errors out or returns nothing actionable | Re-dispatch once with the exact diff and a tighter description. Still nothing? Review the diff yourself against the plan and record that no subagent review was obtained |
+
 ## Files
 
 - `conclave consensus` - Multi-agent consensus framework (code-review mode)
